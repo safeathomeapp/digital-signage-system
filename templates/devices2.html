@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Management - Digital Signage Manager</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .library-panel, .device-panel {
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            min-height: 700px;
+        }
+
+        .media-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+            padding: 1rem 0;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .media-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            border: 2px solid transparent;
+            cursor: grab;
+            transition: all 0.2s;
+        }
+
+        .media-item:hover {
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+            border-color: #0d6efd;
+        }
+
+        .media-item.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+
+        .media-thumbnail {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 0.5rem;
+            border: 2px solid #dee2e6;
+        }
+
+        .thumbnail-placeholder {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5em;
+            border: 2px solid #dee2e6;
+        }
+
+        .media-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #212529;
+            margin-top: 0.5rem;
+            margin-bottom: 0.25rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            line-height: 1.1;
+            height: 1.8em;
+        }
+
+        .media-meta {
+            font-size: 0.65rem;
+            color: #6c757d;
+        }
+
+        .device-content {
+            max-height: 550px;
+            overflow-y: auto;
+        }
+
+        .device-content-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .device-content-item:hover {
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+
+        .device-content-item.drag-over {
+            border-color: #28a745;
+            background-color: #f8fff9;
+        }
+
+        .device-content-item.being-dragged {
+            opacity: 0.5;
+        }
+
+        .device-content-thumbnail {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 0.375rem;
+            margin-right: 1rem;
+            flex-shrink: 0;
+        }
+
+        .device-thumbnail-placeholder {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+            border-radius: 0.375rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2em;
+            margin-right: 1rem;
+            flex-shrink: 0;
+        }
+
+        .device-content-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .device-content-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .device-content-details {
+            font-size: 0.75rem;
+            color: #6c757d;
+        }
+
+        .detail-badge {
+            display: inline-block;
+            margin: 0.125rem 0.25rem 0.125rem 0;
+            padding: 0.125rem 0.5rem;
+            background-color: #f8f9fa;
+            border-radius: 0.25rem;
+            font-size: 0.65rem;
+        }
+
+        .device-content-actions {
+            display: flex;
+            gap: 0.25rem;
+            flex-shrink: 0;
+        }
+
+        .drag-handle {
+            cursor: grab;
+            color: #6c757d;
+            margin-right: 0.5rem;
+            padding: 0.25rem;
+        }
+
+        .drag-handle:hover {
+            color: #495057;
+            background-color: #f8f9fa;
+            border-radius: 0.25rem;
+        }
+
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+
+        .drop-zone {
+            border: 2px dashed #dee2e6;
+            border-radius: 0.5rem;
+            padding: 2rem;
+            text-align: center;
+            color: #6c757d;
+            margin: 1rem 0;
+            transition: all 0.2s;
+        }
+
+        .drop-zone.drag-over {
+            border-color: #28a745;
+            background-color: #f8fff9;
+            color: #28a745;
+        }
+
+        .play-order {
+            background-color: #0d6efd;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: bold;
+            margin-right: 0.5rem;
+            flex-shrink: 0;
+        }
+
+        .device-selector {
+            position: sticky;
+            top: 1rem;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="fas fa-tv me-2"></i>Device Management
+            </span>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link text-white" href="/">Upload Content</a>
+                <a class="nav-link text-white" href="/devices">Manage Devices</a>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Left Panel - Media Library -->
+            <div class="col-md-5">
+                <div class="library-panel p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">
+                            <i class="fas fa-photo-video me-2"></i>Media Library
+                        </h5>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="loadMediaLibrary()">
+                            <i class="fas fa-sync me-1"></i>Refresh
+                        </button>
+                    </div>
+                    
+                    <div id="mediaLibrary">
+                        <div class="text-center">
+                            <div class="spinner-border" role="status"></div>
+                            <p class="mt-2">Loading media...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Device Content -->
+            <div class="col-md-7">
+                <div class="device-panel p-4">
+                    <!-- Device Selector -->
+                    <div class="device-selector bg-white p-3 rounded mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="mb-0">
+                                <i class="fas fa-desktop me-2"></i>Device Content
+                            </h5>
+                        </div>
+                        <div class="row align-items-center">
+                            <div class="col-md-10">
+                                <select id="deviceSelector" class="form-select" onchange="loadDeviceContent()">
+                                    <option value="">Select a device...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Device Content Area -->
+                    <div id="deviceContentArea">
+                        <div class="drop-zone">
+                            <i class="fas fa-tv fa-3x mb-3"></i>
+                            <h6>Select a device to manage content</h6>
+                            <p class="mb-0">Choose a device from the dropdown above to view and manage its content</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        console.log('=== SIMPLIFIED DEVICES PAGE ===');
+
+        let currentDevices = [];
+        let currentDeviceId = null;
+        let currentDeviceContent = [];
+
+        // Drag state variables - keeping them separate
+        let libraryDraggedElement = null;
+        let deviceDraggedElement = null;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded');
+            loadDevices();
+            loadMediaLibrary();
+        });
+
+        // Load devices
+        async function loadDevices() {
+            try {
+                const response = await fetch('/api/devices');
+                currentDevices = await response.json();
+                console.log('Devices loaded:', currentDevices.length);
+                
+                const selector = document.getElementById('deviceSelector');
+                selector.innerHTML = '<option value="">Select a device...</option>';
+                
+                currentDevices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.device_id;
+                    option.textContent = device.display_name || device.device_name;
+                    selector.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading devices:', error);
+            }
+        }
+
+        // Load media library
+        async function loadMediaLibrary() {
+            try {
+                const response = await fetch('/api/media');
+                const mediaList = await response.json();
+                const container = document.getElementById('mediaLibrary');
+                console.log('Media loaded:', mediaList.length);
+                
+                if (mediaList.length === 0) {
+                    container.innerHTML = '<p class="text-muted text-center">No media in library.</p>';
+                    return;
+                }
+                
+                let html = '<div class="media-grid">';
+                
+                mediaList.forEach(media => {
+                    const thumbnail = createThumbnail(media);
+                    const fileSize = Math.round(media.file_size / 1024) + ' KB';
+                    
+                    html += `
+                        <div class="media-item" draggable="true" data-media-id="${media.id}">
+                            ${thumbnail}
+                            <div class="media-title">${media.original_name}</div>
+                            <div class="media-meta">${media.file_type} • ${fileSize}</div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                container.innerHTML = html;
+                
+                // Setup library drag and drop
+                setupLibraryDragAndDrop();
+                
+            } catch (error) {
+                console.error('Error loading media library:', error);
+                container.innerHTML = '<p class="text-danger">Error loading media library.</p>';
+            }
+        }
+
+        // Create thumbnail
+        function createThumbnail(media) {
+            if (media.file_type === 'image') {
+                return `<img src="/uploads/${media.filename}" class="media-thumbnail" alt="${media.original_name}">`;
+            } else {
+                return `<div class="thumbnail-placeholder"><i class="fas fa-video"></i></div>`;
+            }
+        }
+
+        // Setup library to device drag and drop
+        function setupLibraryDragAndDrop() {
+            console.log('Setting up library drag and drop');
+            
+            const mediaItems = document.querySelectorAll('.media-item');
+            console.log('Found media items:', mediaItems.length);
+            
+            mediaItems.forEach(item => {
+                item.addEventListener('dragstart', function(e) {
+                    libraryDraggedElement = e.target.closest('.media-item');
+                    libraryDraggedElement.classList.add('dragging');
+                    console.log('Library drag started:', libraryDraggedElement.dataset.mediaId);
+                });
+                
+                item.addEventListener('dragend', function(e) {
+                    if (libraryDraggedElement) {
+                        libraryDraggedElement.classList.remove('dragging');
+                        libraryDraggedElement = null;
+                    }
+                    console.log('Library drag ended');
+                });
+            });
+            
+            // Global drop zone handling for library items
+            document.addEventListener('dragover', function(e) {
+                if (libraryDraggedElement) {
+                    e.preventDefault();
+                    const dropZone = e.target.closest('.drop-zone');
+                    if (dropZone) {
+                        dropZone.classList.add('drag-over');
+                    }
+                }
+            });
+            
+            document.addEventListener('dragleave', function(e) {
+                if (libraryDraggedElement) {
+                    const dropZone = e.target.closest('.drop-zone');
+                    if (dropZone && !dropZone.contains(e.relatedTarget)) {
+                        dropZone.classList.remove('drag-over');
+                    }
+                }
+            });
+            
+            document.addEventListener('drop', function(e) {
+                if (libraryDraggedElement) {
+                    e.preventDefault();
+                    const dropZone = e.target.closest('.drop-zone');
+                    if (dropZone && currentDeviceId) {
+                        dropZone.classList.remove('drag-over');
+                        const mediaId = libraryDraggedElement.dataset.mediaId;
+                        console.log('Assigning media', mediaId, 'to device', currentDeviceId);
+                        assignMediaToDevice(mediaId);
+                    }
+                }
+            });
+        }
+
+        // Assign media to device
+        async function assignMediaToDevice(mediaId) {
+            try {
+                const response = await fetch('/api/assign-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_id: currentDeviceId,
+                        media_id: parseInt(mediaId),
+                        display_duration: 10
+                    })
+                });
+
+                const result = await response.json();
+                console.log('Assignment result:', result);
+
+                if (result.success) {
+                    loadDeviceContent();
+                } else {
+                    alert('Assignment failed: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Assignment error:', error);
+                alert('Assignment error: ' + error.message);
+            }
+        }
+
+        // Load device content
+        async function loadDeviceContent() {
+            currentDeviceId = document.getElementById('deviceSelector').value;
+            const contentArea = document.getElementById('deviceContentArea');
+            
+            console.log('Loading content for device:', currentDeviceId);
+            
+            if (!currentDeviceId) {
+                contentArea.innerHTML = `
+                    <div class="drop-zone">
+                        <i class="fas fa-tv fa-3x mb-3"></i>
+                        <h6>Select a device to manage content</h6>
+                        <p class="mb-0">Choose a device from the dropdown above to view and manage its content</p>
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/device/${currentDeviceId}/content`);
+                currentDeviceContent = await response.json();
+                console.log('Device content loaded:', currentDeviceContent.length);
+                
+                renderDeviceContent();
+                
+            } catch (error) {
+                console.error('Error loading device content:', error);
+                contentArea.innerHTML = '<p class="text-danger">Error loading device content.</p>';
+            }
+        }
+
+        // Render device content
+        function renderDeviceContent() {
+            const contentArea = document.getElementById('deviceContentArea');
+            
+            if (currentDeviceContent.length === 0) {
+                contentArea.innerHTML = `
+                    <div class="drop-zone">
+                        <i class="fas fa-plus-circle fa-3x mb-3"></i>
+                        <h6>No content assigned to this device</h6>
+                        <p class="mb-0">Drag media files from the library to assign them to this device</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '<div class="device-content">';
+            
+            currentDeviceContent.forEach((content, index) => {
+                const thumbnail = createDeviceThumbnail(content);
+                
+                html += `
+                    <div class="device-content-item" draggable="true" data-assignment-id="${content.assignment_id}" data-index="${index}">
+                        <div class="play-order">${index + 1}</div>
+                        <div class="drag-handle" title="Drag to reorder">
+                            <i class="fas fa-grip-vertical"></i>
+                        </div>
+                        ${thumbnail}
+                        <div class="device-content-info">
+                            <div class="device-content-title">${content.original_name}</div>
+                            <div class="device-content-details">
+                                <span class="detail-badge"><i class="fas fa-clock"></i> ${content.display_duration}s</span>
+                                <span class="detail-badge"><i class="fas fa-file"></i> ${content.file_type}</span>
+                            </div>
+                        </div>
+                        <div class="device-content-actions">
+                            <button class="btn btn-outline-danger btn-sm" onclick="removeContent(${content.assignment_id})" title="Remove">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            
+            // Add drop zone at bottom
+            html += `
+                <div class="drop-zone mt-3">
+                    <i class="fas fa-plus-circle fa-2x mb-2"></i>
+                    <p class="mb-0">Drag more media here to add to this device</p>
+                </div>
+            `;
+            
+            contentArea.innerHTML = html;
+            
+            // Setup device content reordering
+            setupDeviceReordering();
+        }
+
+        // Create device thumbnail
+        function createDeviceThumbnail(content) {
+            if (content.file_type === 'image') {
+                return `<img src="/uploads/${content.filename}" class="device-content-thumbnail" alt="${content.original_name}">`;
+            } else {
+                return `<div class="device-thumbnail-placeholder"><i class="fas fa-video"></i></div>`;
+            }
+        }
+
+        // Setup device content reordering - SEPARATE SYSTEM
+        function setupDeviceReordering() {
+            console.log('Setting up device content reordering');
+            
+            const contentItems = document.querySelectorAll('.device-content-item');
+            console.log('Found device content items:', contentItems.length);
+            
+            contentItems.forEach(item => {
+                item.addEventListener('dragstart', function(e) {
+                    // Only allow reordering if NOT dragging from library
+                    if (!libraryDraggedElement) {
+                        deviceDraggedElement = e.currentTarget;
+                        deviceDraggedElement.classList.add('being-dragged');
+                        console.log('Device content reorder started:', deviceDraggedElement.dataset.assignmentId);
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', 'reorder');
+                    } else {
+                        e.preventDefault();
+                    }
+                });
+
+                item.addEventListener('dragend', function(e) {
+                    if (deviceDraggedElement) {
+                        deviceDraggedElement.classList.remove('being-dragged');
+                        deviceDraggedElement = null;
+                        console.log('Device content reorder ended');
+                        
+                        // Clean up drag-over classes
+                        document.querySelectorAll('.device-content-item').forEach(el => {
+                            el.classList.remove('drag-over');
+                        });
+                    }
+                });
+
+                item.addEventListener('dragover', function(e) {
+                    // Only handle reordering if dragging device content
+                    if (deviceDraggedElement && !libraryDraggedElement && deviceDraggedElement !== e.currentTarget) {
+                        e.preventDefault();
+                        e.currentTarget.classList.add('drag-over');
+                        e.dataTransfer.dropEffect = 'move';
+                    }
+                });
+
+                item.addEventListener('dragleave', function(e) {
+                    if (deviceDraggedElement && !libraryDraggedElement) {
+                        e.currentTarget.classList.remove('drag-over');
+                    }
+                });
+
+                item.addEventListener('drop', function(e) {
+                    // Only handle reordering drops
+                    if (deviceDraggedElement && !libraryDraggedElement && deviceDraggedElement !== e.currentTarget) {
+                        e.preventDefault();
+                        e.stopPropagation(); // Prevent other drop handlers
+                        e.currentTarget.classList.remove('drag-over');
+                        
+                        const fromIndex = parseInt(deviceDraggedElement.dataset.index);
+                        const toIndex = parseInt(e.currentTarget.dataset.index);
+                        
+                        console.log('Reordering from', fromIndex, 'to', toIndex);
+                        reorderContent(fromIndex, toIndex);
+                    }
+                });
+            });
+        }
+
+        // Reorder content
+        async function reorderContent(fromIndex, toIndex) {
+            console.log('Reordering content from index', fromIndex, 'to', toIndex);
+            
+            // Update local array
+            const item = currentDeviceContent.splice(fromIndex, 1)[0];
+            currentDeviceContent.splice(toIndex, 0, item);
+            
+            // Create update data
+            const updates = currentDeviceContent.map((content, index) => ({
+                assignment_id: content.assignment_id,
+                play_order: index + 1
+            }));
+
+            try {
+                const response = await fetch('/api/device/reorder-content', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_id: currentDeviceId,
+                        content_order: updates
+                    })
+                });
+
+                if (response.ok) {
+                    console.log('Content reordered successfully');
+                    renderDeviceContent(); // Re-render with new order
+                } else {
+                    console.error('Failed to reorder content');
+                    alert('Failed to reorder content');
+                    loadDeviceContent(); // Reload original order
+                }
+            } catch (error) {
+                console.error('Error reordering content:', error);
+                alert('Error reordering content: ' + error.message);
+                loadDeviceContent(); // Reload original order
+            }
+        }
+
+        // Remove content
+        async function removeContent(assignmentId) {
+            if (!confirm('Remove this content from the device?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/remove-content/${assignmentId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    console.log('Content removed successfully');
+                    loadDeviceContent();
+                } else {
+                    alert('Failed to remove content');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
+                

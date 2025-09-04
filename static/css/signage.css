@@ -1,0 +1,297 @@
+/* Digital Signage Manager - Complete Stylesheet */
+
+/* File Info Display */
+.file-info {
+    background-color: #f8f9fa;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-top: 0.5rem;
+    display: none;
+}
+
+/* Form Controls */
+.day-checkbox {
+    margin-right: 0.5rem;
+}
+
+.schedule-section {
+    background-color: #f8f9fa;
+    border-radius: 0.375rem;
+    padding: 1.5rem;
+    margin-top: 1rem;
+}
+
+/* Panel Styles */
+.upload-panel {
+    background-color: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    height: fit-content;
+    position: sticky;
+    top: 1rem;
+}
+
+.library-panel {
+    background-color: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    min-height: 600px;
+}
+
+.media-library-container {
+    min-height: 400px;
+}
+
+/* NEW MEDIA GRID LAYOUT */
+.media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    padding: 1rem 0;
+}
+
+.media-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    transition: all 0.2s;
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    position: relative;
+}
+
+.media-item:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+}
+
+/* Media Thumbnails */
+.media-thumbnail {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 0.5rem;
+    border: 2px solid #dee2e6;
+    transition: all 0.2s;
+}
+
+.media-thumbnail:hover {
+    border-color: #0d6efd;
+    transform: scale(1.05);
+}
+
+/* Thumbnail Placeholder for Videos */
+.thumbnail-placeholder {
+    width: 120px;
+    height: 120px;
+    background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 2.5em;
+    border: 2px solid #dee2e6;
+    transition: all 0.2s;
+}
+
+.thumbnail-placeholder:hover {
+    border-color: #0d6efd;
+    transform: scale(1.05);
+}
+
+/* Media Item Content */
+.media-content {
+    margin-top: 0.75rem;
+    width: 100%;
+}
+
+.media-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #212529;
+    margin-bottom: 0.25rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.2;
+    height: 2.4em;
+}
+
+.media-meta {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-bottom: 0.75rem;
+}
+
+.media-actions {
+    display: flex;
+    gap: 0.25rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.media-actions .btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* Status Badge */
+.status-badge {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    color: white;
+    z-index: 2;
+}
+
+.status-badge.status-active {
+    background-color: #28a745;
+}
+
+.status-badge.status-expired {
+    background-color: #dc3545;
+}
+
+.status-badge.status-paused {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.status-badge.status-scheduled {
+    background-color: #17a2b8;
+}
+
+/* Assignment Count Badge */
+.assignment-badge {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    background-color: #0d6efd;
+    color: white;
+    border-radius: 1rem;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    z-index: 2;
+}
+
+.assignment-badge:empty {
+    display: none;
+}
+
+/* Days and Duration Row */
+.days-duration-row {
+    display: flex;
+    align-items: end;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.days-section {
+    flex: 1;
+}
+
+.duration-section {
+    flex: 0 0 auto;
+    min-width: 120px;
+}
+
+/* Date Controls Row */
+.date-controls-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+/* Device Assignment Section */
+.device-assignment-section {
+    display: flex;
+    gap: 1rem;
+}
+
+.device-column {
+    flex: 1;
+}
+
+.device-checkboxes {
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+    background-color: #f8f9fa;
+}
+
+/* Small Form Controls */
+.form-check-sm {
+    font-size: 0.875rem;
+}
+
+.form-check-sm .form-check-input {
+    width: 0.9em;
+    height: 0.9em;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .days-duration-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+    
+    .date-controls-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+    
+    .device-assignment-section {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .upload-panel {
+        position: static;
+    }
+
+    .media-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .media-thumbnail,
+    .thumbnail-placeholder {
+        width: 100px;
+        height: 100px;
+    }
+}
+
+/* Utility Classes */
+.text-nowrap {
+    white-space: nowrap;
+}
+
+.overflow-hidden {
+    overflow: hidden;
+}
+
+.text-ellipsis {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
