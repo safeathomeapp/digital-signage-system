@@ -13,7 +13,76 @@
             box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
             min-height: 700px;
         }
+		
+		.action-button, .delete-bin {
+			border: 2px solid;
+			border-radius: 0.375rem;
+			padding: 0.5rem 0.75rem;
+			text-align: center;
+			transition: all 0.2s;
+			min-width: 80px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 0.875rem;
+			font-weight: 500;
+			text-decoration: none;
+			cursor: pointer;
+		}
 
+		.action-button.upload-btn {
+			border-color: #0d6efd;
+			background-color: #0d6efd;
+			color: white;
+		}
+
+		.action-button.upload-btn:hover {
+			background-color: #0b5ed7;
+			border-color: #0b5ed7;
+			transform: scale(1.05);
+		}
+
+		.action-button.refresh-btn {
+			border-color: #198754;
+			background-color: #198754;
+			color: white;
+		}
+
+		.action-button.refresh-btn:hover {
+			background-color: #157347;
+			border-color: #157347;
+			transform: scale(1.05);
+		}
+
+		.delete-bin {
+			border-color: #dc3545;
+			color: #dc3545;
+			background-color: #fff5f5;
+			cursor: default;
+		}
+
+		.delete-bin.drag-over {
+			background-color: #f8d7da;
+			border-color: #721c24;
+			color: #721c24;
+			transform: scale(1.05);
+		}
+
+		.action-button i, .delete-bin i {
+			margin-right: 0.25rem;
+		}
+		
+		.delete-bin.drag-over {
+			background-color: #f8d7da;
+			border-color: #721c24;
+			color: #721c24;
+			transform: scale(1.05);
+		}
+
+		.delete-bin i {
+			margin-right: 0.25rem;
+		}
+		
         .media-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -238,13 +307,19 @@
                         <h5 class="mb-0">
                             <i class="fas fa-photo-video me-2"></i>Media Library
                         </h5>
-                        <div class="btn-group">
-                            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#uploadModal">
-                                <i class="fas fa-plus me-1"></i>Upload
+                        <div class="d-flex gap-2 align-items-center">
+                            <button class="action-button upload-btn" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                                <i class="fas fa-plus"></i>
+                                <span>Upload</span>
                             </button>
-                            <button class="btn btn-outline-secondary btn-sm" onclick="loadMediaLibrary()">
-                                <i class="fas fa-sync me-1"></i>Refresh
+                            <button class="action-button refresh-btn" onclick="loadMediaLibrary()">
+                                <i class="fas fa-sync"></i>
+                                <span>Refresh</span>
                             </button>
+                            <div id="deleteBin" class="delete-bin">
+                                <i class="fas fa-trash-alt"></i>
+                                <span>Bin</span>
+                            </div>
                         </div>
                     </div>
                     
@@ -459,36 +534,63 @@
         }
 
         // Global drag handlers
-        function globalDragOverHandler(e) {
-            if (libraryDraggedElement) {
-                e.preventDefault();
-                const dropZone = e.target.closest('.drop-zone');
-                if (dropZone) {
-                    dropZone.classList.add('drag-over');
-                }
-            }
-        }
+		function globalDragOverHandler(e) {
+			if (libraryDraggedElement) {
+				e.preventDefault();
+				
+				// Handle delete bin
+				const deleteBin = e.target.closest('#deleteBin');
+				if (deleteBin) {
+					deleteBin.classList.add('drag-over');
+					return;
+				}
+				
+				// Handle device drop zone
+				const dropZone = e.target.closest('.drop-zone');
+				if (dropZone) {
+					dropZone.classList.add('drag-over');
+				}
+			}
+		}
 
         function globalDragLeaveHandler(e) {
-            if (libraryDraggedElement) {
-                const dropZone = e.target.closest('.drop-zone');
-                if (dropZone && !dropZone.contains(e.relatedTarget)) {
-                    dropZone.classList.remove('drag-over');
-                }
-            }
-        }
+			if (libraryDraggedElement) {
+				// Handle delete bin
+				const deleteBin = e.target.closest('#deleteBin');
+				if (deleteBin && !deleteBin.contains(e.relatedTarget)) {
+					deleteBin.classList.remove('drag-over');
+				}
+				
+				// Handle device drop zone
+				const dropZone = e.target.closest('.drop-zone');
+				if (dropZone && !dropZone.contains(e.relatedTarget)) {
+					dropZone.classList.remove('drag-over');
+				}
+			}
+		}
 
         function globalDropHandler(e) {
-            if (libraryDraggedElement) {
-                e.preventDefault();
-                const dropZone = e.target.closest('.drop-zone');
-                if (dropZone && currentDeviceId) {
-                    dropZone.classList.remove('drag-over');
-                    const mediaId = libraryDraggedElement.dataset.mediaId;
-                    assignMediaToDevice(mediaId);
-                }
-            }
-        }
+			if (libraryDraggedElement) {
+				e.preventDefault();
+				
+				// Handle delete bin drop
+				const deleteBin = e.target.closest('#deleteBin');
+				if (deleteBin) {
+					deleteBin.classList.remove('drag-over');
+					const mediaId = libraryDraggedElement.dataset.mediaId;
+					deleteMediaFromLibrary(mediaId);
+					return;
+				}
+				
+				// Handle device assignment drop
+				const dropZone = e.target.closest('.drop-zone');
+				if (dropZone && currentDeviceId) {
+					dropZone.classList.remove('drag-over');
+					const mediaId = libraryDraggedElement.dataset.mediaId;
+					assignMediaToDevice(mediaId);
+				}
+			}
+		}
 
         // Assign media to device
         async function assignMediaToDevice(mediaId) {
@@ -720,6 +822,51 @@
             }
         }
 
+		// Delete media from library
+		async function deleteMediaFromLibrary(mediaId) {
+			try {
+				// Get media info for confirmation
+				const response = await fetch('/api/media');
+				const mediaList = await response.json();
+				const media = mediaList.find(m => m.id == mediaId);
+				
+				if (!media) {
+					alert('Media not found');
+					return;
+				}
+				
+				// Check if assigned to devices
+				let confirmMessage = `Delete "${media.original_name}" from the library?`;
+				if (media.assignment_count > 0) {
+					confirmMessage += `\n\nWARNING: This media is currently assigned to ${media.assignment_count} device(s). Deleting it will remove it from all devices.`;
+				}
+				confirmMessage += '\n\nThis action cannot be undone.';
+				
+				if (!confirm(confirmMessage)) {
+					return;
+				}
+				
+				// Delete the media
+				const deleteResponse = await fetch(`/api/media/${mediaId}`, {
+					method: 'DELETE'
+				});
+				
+				if (deleteResponse.ok) {
+					loadMediaLibrary(); // Refresh the library
+					if (currentDeviceId) {
+						loadDeviceContent(); // Refresh device content if a device is selected
+					}
+					alert('Media deleted successfully');
+				} else {
+					const result = await deleteResponse.json();
+					alert('Delete failed: ' + (result.error || 'Unknown error'));
+				}
+			} catch (error) {
+				console.error('Delete error:', error);
+				alert('Delete error: ' + error.message);
+			}
+		}
+		
         // Upload Modal Functions
         function setupUploadModal() {
             document.getElementById('file').addEventListener('change', function(e) {
