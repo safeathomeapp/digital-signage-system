@@ -119,16 +119,16 @@
         }
 
         .media-thumbnail {
-            width: 80px;
-            height: 80px;
+            width: 100px;  /* was 80px */
+			height: 100px; /* was 80px */
             object-fit: cover;
             border-radius: 0.5rem;
             border: 2px solid #dee2e6;
         }
 
         .thumbnail-placeholder {
-            width: 80px;
-            height: 80px;
+            width: 100px;  /* was 80px */
+			height: 100px; /* was 80px */
             background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
             border-radius: 0.5rem;
             display: flex;
@@ -138,6 +138,39 @@
             font-size: 1.5em;
             border: 2px solid #dee2e6;
         }
+
+		.video-thumbnail {
+			width: 100px;  /* was 80px */
+			height: 100px; /* was 80px */
+			object-fit: cover;
+			border-radius: 0.5rem;
+			border: 2px solid #dee2e6;
+			position: relative;
+		}
+
+		.video-thumbnail::after {
+			content: '\f04b';
+			font-family: 'Font Awesome 6 Free';
+			font-weight: 900;
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			color: white;
+			background: rgba(0, 0, 0, 0.7);
+			border-radius: 50%;
+			width: 24px;
+			height: 24px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 10px;
+		}
+
+		.thumbnail-generating {
+			opacity: 0.7;
+			border-color: #0d6efd;
+		}
 
         .media-meta {
             font-size: 0.65rem;
@@ -493,14 +526,182 @@
             }
         }
 
+		// Generate video thumbnail
+		function generateVideoThumbnail(media, callback) {
+			const video = document.createElement('video');
+			const canvas = document.createElement('canvas');
+			const ctx = canvas.getContext('2d');
+			
+			video.crossOrigin = 'anonymous';
+			video.muted = true;
+			video.preload = 'metadata';
+			
+			video.onloadedmetadata = function() {
+				// Set canvas size to match video aspect ratio but constrained to thumbnail size
+				const aspectRatio = video.videoWidth / video.videoHeight;
+				canvas.width = 100;  // was 80
+				canvas.height = 100; // was 80
+				
+				// Seek to 5 seconds in, or 10% through the video, whichever is smaller
+				const seekTime = Math.min(5, video.duration * 0.1);
+				video.currentTime = seekTime;
+			};
+			
+			video.onseeked = function() {
+				try {
+					// Draw video frame to canvas
+					ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+					
+					// Convert to data URL
+					const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.7);
+					
+					// Cache the thumbnail
+					localStorage.setItem(`video_thumb_${media.id}`, thumbnailUrl);
+					
+					callback(thumbnailUrl);
+				} catch (error) {
+					console.error('Error generating thumbnail:', error);
+					callback(null);
+				} finally {
+					video.remove();
+					canvas.remove();
+				}
+			};
+			
+			video.onerror = function() {
+				console.error('Error loading video for thumbnail');
+				callback(null);
+				video.remove();
+				canvas.remove();
+			};
+			
+			video.src = `/uploads/${media.filename}`;
+		}
+
+		// Generate video thumbnail
+		function generateVideoThumbnail(media, callback) {
+			const video = document.createElement('video');
+			const canvas = document.createElement('canvas');
+			const ctx = canvas.getContext('2d');
+			
+			video.crossOrigin = 'anonymous';
+			video.muted = true;
+			video.preload = 'metadata';
+			
+			video.onloadedmetadata = function() {
+				// Set canvas size to 80x80 for consistent thumbnail size
+				canvas.width = 80;
+				canvas.height = 80;
+				
+				// Fill with white background
+				ctx.fillStyle = '#ffffff';
+				ctx.fillRect(0, 0, canvas.width, canvas.height);
+				
+				// Calculate aspect ratio and positioning
+				const videoAspect = video.videoWidth / video.videoHeight;
+				const canvasAspect = canvas.width / canvas.height; // 1:1 (square)
+				
+				let drawWidth, drawHeight, drawX, drawY;
+				
+				if (videoAspect > canvasAspect) {
+					// Video is wider - fit to width
+					drawWidth = canvas.width;
+					drawHeight = canvas.width / videoAspect;
+					drawX = 0;
+					drawY = (canvas.height - drawHeight) / 2;
+				} else {
+					// Video is taller - fit to height
+					drawWidth = canvas.height * videoAspect;
+					drawHeight = canvas.height;
+					drawX = (canvas.width - drawWidth) / 2;
+					drawY = 0;
+				}
+				
+				// Seek to 5 seconds in, or 10% through the video, whichever is smaller
+				const seekTime = Math.min(5, video.duration * 0.1);
+				video.currentTime = seekTime;
+			};
+			
+			video.onseeked = function() {
+				try {
+					// Draw video frame centered on white background
+					const videoAspect = video.videoWidth / video.videoHeight;
+					const canvasAspect = canvas.width / canvas.height;
+					
+					let drawWidth, drawHeight, drawX, drawY;
+					
+					if (videoAspect > canvasAspect) {
+						drawWidth = canvas.width;
+						drawHeight = canvas.width / videoAspect;
+						drawX = 0;
+						drawY = (canvas.height - drawHeight) / 2;
+					} else {
+						drawWidth = canvas.height * videoAspect;
+						drawHeight = canvas.height;
+						drawX = (canvas.width - drawWidth) / 2;
+						drawY = 0;
+					}
+					
+					ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight);
+					
+					// Convert to data URL
+					const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8);
+					
+					// Cache the thumbnail
+					localStorage.setItem(`video_thumb_${media.id}`, thumbnailUrl);
+					
+					callback(thumbnailUrl);
+				} catch (error) {
+					console.error('Error generating thumbnail:', error);
+					callback(null);
+				} finally {
+					video.remove();
+					canvas.remove();
+				}
+			};
+			
+			video.onerror = function() {
+				console.error('Error loading video for thumbnail');
+				callback(null);
+				video.remove();
+				canvas.remove();
+			};
+			
+			video.src = `/uploads/${media.filename}`;
+		}
+
+		// Generate thumbnail and update specific element
+		function generateVideoThumbnailForElement(media) {
+			generateVideoThumbnail(media, function(thumbnailUrl) {
+				if (thumbnailUrl) {
+					// Find the media item and update its thumbnail
+					const mediaElement = document.querySelector(`[data-media-id="${media.id}"]`);
+					if (mediaElement) {
+						const placeholder = mediaElement.querySelector('.thumbnail-placeholder');
+						if (placeholder) {
+							placeholder.outerHTML = `<img src="${thumbnailUrl}" class="video-thumbnail" alt="${media.original_name}">`;
+						}
+					}
+				}
+			});
+		}
+
         // Create thumbnail
-        function createThumbnail(media) {
-            if (media.file_type === 'image') {
-                return `<img src="/uploads/${media.filename}" class="media-thumbnail" alt="${media.original_name}">`;
-            } else {
-                return `<div class="thumbnail-placeholder"><i class="fas fa-video"></i></div>`;
-            }
-        }
+		function createThumbnail(media) {
+			if (media.file_type === 'image') {
+				return `<img src="/uploads/${media.filename}" class="media-thumbnail" alt="${media.original_name}">`;
+			} else {
+				// Check if we have a cached thumbnail
+				const cachedThumb = localStorage.getItem(`video_thumb_${media.id}`);
+				if (cachedThumb) {
+					return `<img src="${cachedThumb}" class="video-thumbnail" alt="${media.original_name}">`;
+				}
+				
+				// Return placeholder with generation class, trigger generation
+				setTimeout(() => generateVideoThumbnailForElement(media), 100);
+				return `<div class="thumbnail-placeholder thumbnail-generating"><i class="fas fa-video"></i></div>`;
+			}
+		}
 
         // Setup library to device drag and drop
         function setupLibraryDragAndDrop() {
