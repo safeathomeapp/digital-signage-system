@@ -374,9 +374,20 @@
                             <h5 class="mb-0">
                                 <i class="fas fa-desktop me-2"></i>Device Content
                             </h5>
-                            <button class="btn btn-outline-primary btn-sm" onclick="refreshAll()">
-                                <i class="fas fa-sync me-1"></i>Refresh All
-                            </button>
+                            <div class="d-flex gap-2 align-items-center">
+                                <button class="action-button upload-btn" data-bs-toggle="modal" data-bs-target="#manageDevicesModal">
+                                    <i class="fas fa-cog"></i>
+                                    <span>Manage</span>
+                                </button>
+								<button class="action-button refresh-btn" onclick="refreshAll()">
+                                    <i class="fas fa-sync"></i>
+                                    <span>Refresh</span>
+                                </button>
+                                <div id="deviceDeleteBin" class="delete-bin">
+                                    <i class="fas fa-trash-alt"></i>
+                                    <span>Bin</span>
+                                </div>
+                            </div>
                         </div>
                         <div class="row align-items-center">
                             <div class="col-md-10">
@@ -386,7 +397,6 @@
                             </div>
                         </div>
                     </div>
-
                     <!-- Device Content Area -->
                     <div id="deviceContentArea">
                         <div class="drop-zone">
@@ -452,7 +462,30 @@
             </div>
         </div>
     </div>
-
+	<!-- Device Management Modal -->
+    <div class="modal fade" id="manageDevicesModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-cog me-2"></i>Manage Devices
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="deviceManagementList">
+                        <div class="text-center">
+                            <div class="spinner-border" role="status"></div>
+                            <p class="mt-2">Loading devices...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentDevices = [];
@@ -902,6 +935,7 @@
             contentArea.innerHTML = html;
             
             setupDeviceReordering();
+			setupDeviceContentBin();
         }
 
         // Create device thumbnail
@@ -968,7 +1002,35 @@
                 });
             });
         }
-
+		
+		// Setup device content bin functionality
+        function setupDeviceContentBin() {
+            const deviceBin = document.getElementById('deviceDeleteBin');
+            if (!deviceBin) return;
+            
+            deviceBin.addEventListener('dragover', function(e) {
+                if (deviceDraggedElement) {
+                    e.preventDefault();
+                    deviceBin.classList.add('drag-over');
+                }
+            });
+            
+            deviceBin.addEventListener('dragleave', function(e) {
+                if (deviceDraggedElement && !deviceBin.contains(e.relatedTarget)) {
+                    deviceBin.classList.remove('drag-over');
+                }
+            });
+            
+            deviceBin.addEventListener('drop', function(e) {
+                if (deviceDraggedElement) {
+                    e.preventDefault();
+                    deviceBin.classList.remove('drag-over');
+                    const assignmentId = deviceDraggedElement.dataset.assignmentId;
+                    removeContent(assignmentId);
+                }
+            });
+        }
+		
         // Reorder content
         async function reorderContent(fromIndex, toIndex) {
             const item = currentDeviceContent.splice(fromIndex, 1)[0];
@@ -1210,6 +1272,147 @@
                 uploadBtn.disabled = false;
             }
         }
+		// Device management functions
+        function loadDeviceManagement() {
+            const container = document.getElementById('deviceManagementList');
+            
+            if (currentDevices.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center">No devices found.</p>';
+                return;
+            }
+            
+            let html = '';
+            currentDevices.forEach(device => {
+                html += `
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-3">
+                                    <strong>Device ID:</strong><br>
+                                    <code>${device.device_id}</code>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>IP Address:</strong><br>
+                                    ${device.ip_address || 'Unknown'}
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-2">
+                                        <label class="form-label small">Custom Name:</label>
+                                        <input type="text" class="form-control form-control-sm" 
+                                               id="name_${device.device_id}" 
+                                               value="${device.custom_name || ''}" 
+                                               placeholder="Enter custom name">
+                                    </div>
+                                    <div>
+                                        <label class="form-label small">Location:</label>
+                                        <input type="text" class="form-control form-control-sm" 
+                                               id="location_${device.device_id}" 
+                                               value="${device.location || ''}" 
+                                               placeholder="Enter location">
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <button class="btn btn-primary btn-sm w-100 mb-2" 
+                                            onclick="saveDeviceInfo('${device.device_id}')">
+                                        <i class="fas fa-save"></i> Save
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm w-100" 
+                                            onclick="deleteDevice('${device.device_id}', '${device.device_name}')">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        async function saveDeviceInfo(deviceId) {
+            const customName = document.getElementById(`name_${deviceId}`).value.trim();
+            const location = document.getElementById(`location_${deviceId}`).value.trim();
+            
+            try {
+                const response = await fetch(`/api/device/${deviceId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        custom_name: customName,
+                        location: location
+                    })
+                });
+                
+                if (response.ok) {
+                    loadDevices(); // Refresh device list
+                    alert('Device information updated successfully');
+                } else {
+                    alert('Failed to update device information');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+		async function deleteDevice(deviceId, deviceName) {
+            // Check if device has content assigned
+            try {
+                const response = await fetch(`/api/device/${deviceId}/content`);
+                const deviceContent = await response.json();
+                
+                let confirmMessage = `Delete device "${deviceName}" (${deviceId})?`;
+                
+                if (deviceContent.length > 0) {
+                    confirmMessage += `\n\nWARNING: This device has ${deviceContent.length} content assignment(s). Deleting the device will remove all its content assignments.`;
+                }
+                
+                confirmMessage += '\n\nThis action cannot be undone.';
+                
+                if (!confirm(confirmMessage)) {
+                    return;
+                }
+                
+                // Delete the device
+                const deleteResponse = await fetch(`/api/device/${deviceId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (deleteResponse.ok) {
+                    // Refresh devices data first
+                    await loadDevices(); 
+                    
+                    // Then refresh the management modal
+                    loadDeviceManagement(); 
+                    
+                    // Clear device selector if deleted device was selected
+                    if (currentDeviceId === deviceId) {
+                        document.getElementById('deviceSelector').value = '';
+                        currentDeviceId = null;
+                        document.getElementById('deviceContentArea').innerHTML = `
+                            <div class="drop-zone">
+                                <i class="fas fa-tv fa-3x mb-3"></i>
+                                <h6>Select a device to manage content</h6>
+                                <p class="mb-0">Choose a device from the dropdown above to view and manage its content</p>
+                            </div>
+                        `;
+                    }
+                    
+                    alert('Device deleted successfully');
+                } else {
+                    const result = await deleteResponse.json();
+                    alert('Delete failed: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Delete device error:', error);
+                alert('Delete error: ' + error.message);
+            }
+        }
+		
+        // Load device management when modal opens
+        document.getElementById('manageDevicesModal').addEventListener('shown.bs.modal', function() {
+            loadDeviceManagement();
+        });
     </script>
 </body>
 </html>

@@ -935,6 +935,32 @@ def get_media_info(media_id):
         logger.error(f"Error getting media info: {e}")
         return jsonify({'error': 'Failed to get media info'}), 500
 
+# Delete device
+@app.route('/api/device/<device_id>', methods=['DELETE'])
+def delete_device(device_id):
+    try:
+        conn = sqlite3.connect('signage.db')
+        
+        # Delete device content assignments first
+        conn.execute('DELETE FROM device_content WHERE device_id = ?', (device_id,))
+        
+        # Delete device record
+        cursor = conn.execute('DELETE FROM devices WHERE device_id = ?', (device_id,))
+        
+        if cursor.rowcount == 0:
+            conn.close()
+            return jsonify({'error': 'Device not found'}), 404
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"Device {device_id} deleted")
+        return jsonify({'success': 'Device deleted successfully'})
+    
+    except Exception as e:
+        logger.error(f"Error deleting device: {e}")
+        return jsonify({'error': 'Failed to delete device'}), 500
+        
 if __name__ == '__main__':
     init_db()
     print(f"🚀 Digital Signage Server starting on: {SERVER_IP}:5000")
