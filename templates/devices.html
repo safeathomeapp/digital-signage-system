@@ -316,6 +316,76 @@
             top: 1rem;
             z-index: 10;
         }
+		
+		.device-content-item.editing {
+			background-color: #f8f9fa;
+			border-color: #0d6efd;
+		}
+
+		.content-details-row {
+			display: flex;
+			gap: 0.5rem;
+			margin-top: 0.5rem;
+			flex-wrap: wrap;
+			align-items: center;
+		}
+
+		.detail-display {
+			display: inline-flex;
+			align-items: center;
+			gap: 0.25rem;
+			font-size: 0.75rem;
+			color: #6c757d;
+		}
+
+		.detail-display i {
+			width: 12px;
+			text-align: center;
+		}
+
+		.edit-form {
+			display: none;
+			margin-top: 1rem;
+			padding: 1rem;
+			background-color: #f8f9fa;
+			border-radius: 0.375rem;
+			border: 1px solid #dee2e6;
+		}
+
+		.edit-form.active {
+			display: block;
+		}
+
+		.form-row {
+			display: flex;
+			gap: 1rem;
+			margin-bottom: 0.75rem;
+			flex-wrap: wrap;
+		}
+
+		.form-col {
+			flex: 1;
+			min-width: 120px;
+		}
+
+		.form-col-auto {
+			flex: 0 0 auto;
+		}
+
+		.days-checkboxes {
+			display: flex;
+			gap: 0.5rem;
+			flex-wrap: wrap;
+		}
+
+		.days-checkboxes .form-check {
+			margin: 0;
+		}
+
+		.duration-disabled {
+			background-color: #e9ecef !important;
+			opacity: 0.6;
+		}
     </style>
 </head>
 <body class="bg-light">
@@ -826,32 +896,59 @@
 			}
 		}
 
-        // Assign media to device
-        async function assignMediaToDevice(mediaId) {
-            try {
-                const response = await fetch('/api/assign-content', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        device_id: currentDeviceId,
-                        media_id: parseInt(mediaId),
-                        display_duration: 10
-                    })
-                });
+        // Assign media to device with proper defaults
+			async function assignMediaToDevice(mediaId) {
+				try {
+					// First, get media details to determine if it's video or image and get video duration
+					const mediaResponse = await fetch(`/api/media/${mediaId}`);
+					const media = await mediaResponse.json();
+					
+					if (!media) {
+						alert('Media not found');
+						return;
+					}
+					
+					// Set duration based on media type
+					const isVideo = media.file_type === 'video';
+					let displayDuration = 10; // Default for images
+					
+					if (isVideo && media.video_duration) {
+						displayDuration = media.video_duration; // Use actual video duration
+					}
+					
+					// Get today's date for start date
+					const today = new Date().toISOString().split('T')[0];
+					
+					// Prepare assignment data with defaults
+					const assignmentData = {
+						device_id: currentDeviceId,
+						media_id: parseInt(mediaId),
+						display_duration: displayDuration,
+						days_of_week: ['all'], // All days as standard
+						start_date: today, // Today's date
+						end_date: null, // No end date
+						start_time: null, // All day
+						end_time: null // All day
+					};
+					
+					const response = await fetch('/api/assign-content-with-schedule', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(assignmentData)
+					});
 
-                const result = await response.json();
+					const result = await response.json();
 
-                if (result.success) {
-                    loadDeviceContent();
-                } else {
-                    alert('Assignment failed: ' + result.error);
-                }
-            } catch (error) {
-                console.error('Assignment error:', error);
-                alert('Assignment error: ' + error.message);
-            }
-        }
-
+					if (result.success) {
+						loadDeviceContent();
+					} else {
+						alert('Assignment failed: ' + result.error);
+					}
+				} catch (error) {
+					console.error('Assignment error:', error);
+					alert('Assignment error: ' + error.message);
+				}
+			}
         // Load device content
         async function loadDeviceContent() {
             currentDeviceId = document.getElementById('deviceSelector').value;
@@ -880,7 +977,7 @@
             }
         }
 
-        // Render device content
+        // Render device content with inline editing
         function renderDeviceContent() {
             const contentArea = document.getElementById('deviceContentArea');
             
@@ -899,6 +996,7 @@
             
             currentDeviceContent.forEach((content, index) => {
                 const thumbnail = createDeviceThumbnail(content);
+                const isVideo = content.file_type === 'video';
                 
                 html += `
                     <div class="device-content-item" draggable="true" data-assignment-id="${content.assignment_id}" data-index="${index}">
@@ -909,14 +1007,132 @@
                         ${thumbnail}
                         <div class="device-content-info">
                             <div class="device-content-title">${content.original_name}</div>
-                            <div class="device-content-details">
-                                <span class="detail-badge"><i class="fas fa-clock"></i> ${content.display_duration}s</span>
-                                <span class="detail-badge"><i class="fas fa-file"></i> ${content.file_type}</span>
+                            
+                            <!-- Display Mode Details -->
+                            <div class="content-details-display" id="details_${content.assignment_id}">
+                                <div class="content-details-row">
+									<div class="detail-display">
+										<i class="fas fa-clock"></i>
+										<span>${content.display_duration}s</span>
+									</div>
+									<div class="detail-display">
+										<i class="fas fa-file"></i>
+										<span>${content.file_type}</span>
+									</div>
+									<div class="detail-display">
+										<i class="fas fa-calendar"></i>
+										<span>${formatDaysDisplay(content.days_of_week)}</span>
+									</div>
+									<div class="detail-display">
+										<i class="fas fa-play"></i>
+										<span>${formatTimeDisplay(content.start_time, content.end_time)}</span>
+									</div>
+									<div class="detail-display">
+										<i class="fas fa-calendar-alt"></i>
+										<span>${formatDateDisplay(content.start_date, content.end_date)}</span>
+									</div>
+								</div>
+                            </div>
+                            
+                            <!-- Edit Form -->
+                            <div class="edit-form" id="edit_${content.assignment_id}">
+                                <div class="form-row">
+                                    <div class="form-col">
+                                        <label class="form-label small">Duration (seconds):</label>
+                                        <input type="number" class="form-control form-control-sm ${isVideo ? 'duration-disabled' : ''}" 
+                                               id="duration_${content.assignment_id}" 
+                                               value="${content.display_duration}" 
+                                               min="1" max="300" 
+                                               ${isVideo ? 'readonly title="Video duration is fixed"' : ''}>
+                                    </div>
+                                    <div class="form-col">
+                                        <label class="form-label small">Start Time:</label>
+                                        <select class="form-select form-select-sm" id="startTime_${content.assignment_id}">
+                                            <option value="">Any time</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-col">
+                                        <label class="form-label small">End Time:</label>
+                                        <select class="form-select form-select-sm" id="endTime_${content.assignment_id}">
+                                            <option value="">Any time</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-col">
+                                        <label class="form-label small">Days of Week:</label>
+                                        <div class="days-checkboxes">
+                                            <div class="form-check form-check-sm">
+                                                <input class="form-check-input" type="checkbox" id="mon_${content.assignment_id}" value="mon" checked>
+                                                <label class="form-check-label small" for="mon_${content.assignment_id}">Mon</label>
+                                            </div>
+                                            <div class="form-check form-check-sm">
+                                                <input class="form-check-input" type="checkbox" id="tue_${content.assignment_id}" value="tue" checked>
+                                                <label class="form-check-label small" for="tue_${content.assignment_id}">Tue</label>
+                                            </div>
+                                            <div class="form-check form-check-sm">
+                                                <input class="form-check-input" type="checkbox" id="wed_${content.assignment_id}" value="wed" checked>
+                                                <label class="form-check-label small" for="wed_${content.assignment_id}">Wed</label>
+                                            </div>
+                                            <div class="form-check form-check-sm">
+                                                <input class="form-check-input" type="checkbox" id="thu_${content.assignment_id}" value="thu" checked>
+                                                <label class="form-check-label small" for="thu_${content.assignment_id}">Thu</label>
+                                            </div>
+                                            <div class="form-check form-check-sm">
+                                                <input class="form-check-input" type="checkbox" id="fri_${content.assignment_id}" value="fri" checked>
+                                                <label class="form-check-label small" for="fri_${content.assignment_id}">Fri</label>
+                                            </div>
+                                            <div class="form-check form-check-sm">
+                                                <input class="form-check-input" type="checkbox" id="sat_${content.assignment_id}" value="sat" checked>
+                                                <label class="form-check-label small" for="sat_${content.assignment_id}">Sat</label>
+                                            </div>
+                                            <div class="form-check form-check-sm">
+                                                <input class="form-check-input" type="checkbox" id="sun_${content.assignment_id}" value="sun" checked>
+                                                <label class="form-check-label small" for="sun_${content.assignment_id}">Sun</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-col">
+                                        <label class="form-label small">Start Date:</label>
+                                        <input type="date" class="form-control form-control-sm" id="startDate_${content.assignment_id}">
+                                    </div>
+									<div class="form-col">
+										<label class="form-label small">Duration:</label>
+										<select class="form-select form-select-sm" id="durationDropdown_${content.assignment_id}" onchange="calculateEndDate(${content.assignment_id})">
+											<option value="">No end date</option>
+											<option value="1">1 month</option>
+											<option value="2">2 months</option>
+											<option value="3">3 months</option>
+											<option value="6">6 months</option>
+											<option value="12">1 year</option>
+											<option value="custom">Custom</option>
+										</select>
+									</div>
+                                    <div class="form-col">
+                                        <label class="form-label small">End Date:</label>
+                                        <input type="date" class="form-control form-control-sm" id="endDate_${content.assignment_id}">
+                                    </div>
+                                    <div class="form-col-auto">
+                                        <label class="form-label small">&nbsp;</label>
+                                        <div class="d-flex gap-1">
+                                            <button class="btn btn-success btn-sm" onclick="saveContentEdit(${content.assignment_id})">
+                                                <i class="fas fa-save"></i>
+                                            </button>
+                                            <button class="btn btn-secondary btn-sm" onclick="cancelContentEdit(${content.assignment_id})">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="device-content-actions">
-                            <button class="btn btn-outline-danger btn-sm" onclick="removeContent(${content.assignment_id})" title="Remove">
-                                <i class="fas fa-trash"></i>
+                            <button class="btn btn-outline-primary btn-sm" onclick="editContent(${content.assignment_id})" title="Edit">
+                                <i class="fas fa-edit"></i>
                             </button>
                         </div>
                     </div>
@@ -935,7 +1151,7 @@
             contentArea.innerHTML = html;
             
             setupDeviceReordering();
-			setupDeviceContentBin();
+            setupDeviceContentBin();
         }
 
         // Create device thumbnail
@@ -1206,6 +1422,24 @@
             const secs = seconds % 60;
             return `${mins}:${secs.toString().padStart(2, '0')}`;
         }
+		
+		function formatDateDisplay(startDate, endDate) {
+			if (!startDate && !endDate) return 'No dates';
+			if (startDate && endDate) {
+				const start = new Date(startDate).toLocaleDateString();
+				const end = new Date(endDate).toLocaleDateString();
+				return `${start} - ${end}`;
+			}
+			if (startDate) {
+				const start = new Date(startDate).toLocaleDateString();
+				return `From ${start}`;
+			}
+			if (endDate) {
+				const end = new Date(endDate).toLocaleDateString();
+				return `Until ${end}`;
+			}
+			return 'No dates';
+		}
 
         // Upload file
         async function uploadFile() {
@@ -1413,6 +1647,215 @@
         document.getElementById('manageDevicesModal').addEventListener('shown.bs.modal', function() {
             loadDeviceManagement();
         });
+		
+		// Content editing functions
+        function editContent(assignmentId) {
+            const item = document.querySelector(`[data-assignment-id="${assignmentId}"]`);
+            const detailsDisplay = document.getElementById(`details_${assignmentId}`);
+            const editForm = document.getElementById(`edit_${assignmentId}`);
+            
+            item.classList.add('editing');
+            detailsDisplay.style.display = 'none';
+            editForm.classList.add('active');
+            
+            // Load current values
+            loadContentEditData(assignmentId);
+        }
+
+        function cancelContentEdit(assignmentId) {
+            const item = document.querySelector(`[data-assignment-id="${assignmentId}"]`);
+            const detailsDisplay = document.getElementById(`details_${assignmentId}`);
+            const editForm = document.getElementById(`edit_${assignmentId}`);
+            
+            item.classList.remove('editing');
+            detailsDisplay.style.display = 'block';
+            editForm.classList.remove('active');
+        }
+
+        async function loadContentEditData(assignmentId) {
+			try {
+				// Populate time selectors FIRST
+				populateTimeSelector(`startTime_${assignmentId}`);
+				populateTimeSelector(`endTime_${assignmentId}`);
+				
+				// Find the content item to get existing data
+				const content = currentDeviceContent.find(c => c.assignment_id == assignmentId);
+				
+				if (content) {
+					// Load existing days of week
+					if (content.days_of_week) {
+						try {
+							const days = JSON.parse(content.days_of_week);
+							
+							// If 'all' is in the array or no specific days, check all days
+							if (days.includes('all') || days.length === 0) {
+								['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+									const checkbox = document.getElementById(`${day}_${assignmentId}`);
+									if (checkbox) checkbox.checked = true;
+								});
+							} else {
+								// First uncheck all days
+								['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+									const checkbox = document.getElementById(`${day}_${assignmentId}`);
+									if (checkbox) checkbox.checked = false;
+								});
+								// Then check the saved days
+								days.forEach(day => {
+									if (day !== 'all') {  // Skip 'all' as it's not a checkbox
+										const checkbox = document.getElementById(`${day}_${assignmentId}`);
+										if (checkbox) checkbox.checked = true;
+									}
+								});
+							}
+						} catch (e) {
+							console.error('Error parsing days of week:', e);
+							// Default to all days checked on error
+							['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+								const checkbox = document.getElementById(`${day}_${assignmentId}`);
+								if (checkbox) checkbox.checked = true;
+							});
+						}
+					} else {
+						// If no days_of_week data, default to all days checked
+						['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+							const checkbox = document.getElementById(`${day}_${assignmentId}`);
+							if (checkbox) checkbox.checked = true;
+						});
+					}
+					
+					// Load existing dates
+					if (content.start_date) {
+						const startDateInput = document.getElementById(`startDate_${assignmentId}`);
+						if (startDateInput) startDateInput.value = content.start_date;
+					}
+					
+					if (content.end_date) {
+						const endDateInput = document.getElementById(`endDate_${assignmentId}`);
+						if (endDateInput) endDateInput.value = content.end_date;
+					}
+					
+					// Load existing times
+					if (content.start_time) {
+						const startTimeSelect = document.getElementById(`startTime_${assignmentId}`);
+						if (startTimeSelect) startTimeSelect.value = content.start_time;
+					}
+					
+					if (content.end_time) {
+						const endTimeSelect = document.getElementById(`endTime_${assignmentId}`);
+						if (endTimeSelect) endTimeSelect.value = content.end_time;
+					}
+				}
+				
+			} catch (error) {
+				console.error('Error loading content data:', error);
+				populateTimeSelector(`startTime_${assignmentId}`);
+				populateTimeSelector(`endTime_${assignmentId}`);
+			}
+		}
+
+        function populateTimeSelector(selectorId) {
+            const selector = document.getElementById(selectorId);
+            if (selector && selector.options.length <= 1) {
+                for (let hour = 0; hour < 24; hour++) {
+                    for (let min = 0; min < 60; min += 15) {
+                        const timeStr = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+                        const displayStr = `${hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}:${min.toString().padStart(2, '0')} ${hour < 12 ? 'AM' : 'PM'}`;
+                        const option = document.createElement('option');
+                        option.value = timeStr;
+                        option.textContent = displayStr;
+                        selector.appendChild(option);
+                    }
+                }
+            }
+        }
+
+        async function saveContentEdit(assignmentId) {
+            const selectedDays = [];
+            ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+                const checkbox = document.getElementById(`${day}_${assignmentId}`);
+                if (checkbox && checkbox.checked) {
+                    selectedDays.push(day);
+                }
+            });
+
+            const updateData = {
+                display_duration: parseInt(document.getElementById(`duration_${assignmentId}`).value),
+                days_of_week: selectedDays.length > 0 ? selectedDays : ['all'],
+                start_time: document.getElementById(`startTime_${assignmentId}`).value || null,
+                end_time: document.getElementById(`endTime_${assignmentId}`).value || null,
+                start_date: document.getElementById(`startDate_${assignmentId}`).value || null,
+                end_date: document.getElementById(`endDate_${assignmentId}`).value || null
+            };
+
+            try {
+                const response = await fetch(`/api/device-content/${assignmentId}/schedule`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updateData)
+                });
+
+                if (response.ok) {
+                    cancelContentEdit(assignmentId);
+                    loadDeviceContent(); // Refresh to show updated details
+                    alert('Content settings updated successfully');
+                } else {
+                    alert('Failed to update content settings');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+		
+		function calculateEndDate(assignmentId) {
+			const startDate = document.getElementById(`startDate_${assignmentId}`).value;
+			const durationSelect = document.getElementById(`durationDropdown_${assignmentId}`).value;
+			const endDateInput = document.getElementById(`endDate_${assignmentId}`);
+			
+			if (durationSelect === 'custom') {
+				endDateInput.readOnly = false;
+				endDateInput.style.backgroundColor = '';
+				return;
+			}
+			
+			endDateInput.readOnly = true;
+			endDateInput.style.backgroundColor = '#f8f9fa';
+			
+			if (startDate && durationSelect && durationSelect !== 'custom') {
+				const start = new Date(startDate);
+				const end = new Date(start.getFullYear(), start.getMonth() + parseInt(durationSelect), start.getDate());
+				endDateInput.value = end.toISOString().split('T')[0];
+			} else {
+				endDateInput.value = '';
+			}
+		}
+		
+		// Add this function before your other functions
+		function refreshAll() {
+			loadDevices();
+			loadMediaLibrary();
+			if (currentDeviceId) {
+				loadDeviceContent();
+			}
+		}
+		
+		function formatDaysDisplay(daysJson) {
+			if (!daysJson) return 'All days';
+			try {
+				const days = JSON.parse(daysJson);
+				if (days.includes('all') || days.length === 0 || days.length === 7) return 'All days';
+				return days.map(d => d.toUpperCase()).join(', ');
+			} catch (e) {
+				return 'All days';
+			}
+		}
+
+		function formatTimeDisplay(startTime, endTime) {
+			if (!startTime && !endTime) return 'All day';
+			if (startTime && endTime) return `${startTime} - ${endTime}`;
+			if (startTime) return `From ${startTime}`;
+			if (endTime) return `Until ${endTime}`;
+			return 'All day';
+		}
     </script>
 </body>
 </html>

@@ -298,6 +298,85 @@ def upload_file():
     except Exception as e:
         logger.error(f"Upload error: {e}")
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+
+# Assign content with full scheduling data
+@app.route('/api/assign-content-with-schedule', methods=['POST'])
+def assign_content_with_schedule():
+    try:
+        data = request.get_json()
+        device_id = data.get('device_id')
+        media_id = data.get('media_id')
+        
+        if not device_id or not media_id:
+            return jsonify({'error': 'Device ID and Media ID required'}), 400
+        
+        conn = sqlite3.connect('signage.db')
+        
+        # Check if assignment already exists
+        cursor = conn.execute('''
+            SELECT id FROM device_content 
+            WHERE device_id = ? AND media_id = ? AND is_active = 1
+        ''', (device_id, media_id))
+        
+        if cursor.fetchone():
+            conn.close()
+            return jsonify({'error': 'Content already assigned to this device'}), 400
+        
+        # Get video duration from media table if it's a video
+        cursor = conn.execute('SELECT file_type, video_duration FROM media WHERE id = ?', (media_id,))
+        media_info = cursor.fetchone()
+        
+        if not media_info:
+            conn.close()
+            return jsonify({'error': 'Media not found'}), 400
+        
+        file_type, stored_video_duration = media_info
+        
+        # Set duration based on type
+        display_duration = data.get('display_duration', 10)
+        if file_type == 'video' and stored_video_duration:
+            display_duration = stored_video_duration
+        
+        # Get next play order
+        cursor = conn.execute('''
+            SELECT COALESCE(MAX(play_order), 0) + 1 
+            FROM device_content 
+            WHERE device_id = ? AND is_active = 1
+        ''', (device_id,))
+        next_order = cursor.fetchone()[0]
+        
+        # Prepare days of week
+        days_list = data.get('days_of_week', ['all'])
+        days_json = json.dumps(days_list)
+        
+        # Create new assignment with full scheduling
+        conn.execute('''
+            INSERT INTO device_content 
+            (device_id, media_id, display_duration, video_duration, days_of_week, 
+             start_date, end_date, start_time, end_time, play_order, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        ''', (
+            device_id, 
+            media_id, 
+            display_duration,
+            stored_video_duration,
+            days_json,
+            data.get('start_date'),
+            data.get('end_date'),
+            data.get('start_time'),
+            data.get('end_time'),
+            next_order
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"Content {media_id} assigned to device {device_id} with scheduling")
+        return jsonify({'success': 'Content assigned with scheduling'})
+    
+    except Exception as e:
+        logger.error(f"Error assigning content with schedule: {e}")
+        return jsonify({'error': 'Failed to assign content'}), 500
         
 # Enhanced Media API with status information
 @app.route('/api/media')
@@ -580,14 +659,15 @@ def get_devices():
         logger.error(f"Error getting devices: {e}")
         return jsonify({'error': 'Failed to get devices'}), 500
 
-# Get device content with play order (CONSOLIDATED SINGLE FUNCTION)
+# Get device content with full scheduling data
 @app.route('/api/device/<device_id>/content')
 def get_device_content(device_id):
     try:
         conn = sqlite3.connect('signage.db')
         cursor = conn.execute('''
             SELECT dc.id as assignment_id, dc.media_id, dc.display_duration, dc.play_order,
-                   m.filename, m.original_name, m.file_type
+                   dc.days_of_week, dc.start_date, dc.end_date, dc.start_time, dc.end_time,
+                   m.filename, m.original_name, m.file_type, m.video_duration
             FROM device_content dc
             JOIN media m ON dc.media_id = m.id
             WHERE dc.device_id = ? AND dc.is_active = 1
@@ -601,9 +681,15 @@ def get_device_content(device_id):
                 'media_id': row[1],
                 'display_duration': row[2],
                 'play_order': row[3] or 0,
-                'filename': row[4],
-                'original_name': row[5],
-                'file_type': row[6]
+                'days_of_week': row[4],
+                'start_date': row[5],
+                'end_date': row[6],
+                'start_time': row[7],
+                'end_time': row[8],
+                'filename': row[9],
+                'original_name': row[10],
+                'file_type': row[11],
+                'video_duration': row[12]
             })
         
         conn.close()
@@ -935,6 +1021,46 @@ def get_media_info(media_id):
         logger.error(f"Error getting media info: {e}")
         return jsonify({'error': 'Failed to get media info'}), 500
 
+# Update device content schedule
+@app.route('/api/device-content/<int:assignment_id>/schedule', methods=['PUT'])
+def update_device_content_schedule(assignment_id):
+    try:
+        data = request.get_json()
+        
+        conn = sqlite3.connect('signage.db')
+        
+        # Get days of week, default to 'all' if empty
+        days_list = data.get('days_of_week', [])
+        if not days_list or len(days_list) == 0:
+            days_list = ['all']
+        days_json = json.dumps(days_list)
+        
+        # Update device content record
+        conn.execute('''
+            UPDATE device_content 
+            SET days_of_week = ?, display_duration = ?, start_time = ?, end_time = ?, 
+                start_date = ?, end_date = ?
+            WHERE id = ?
+        ''', (
+            days_json,
+            data.get('display_duration', 10),
+            data.get('start_time'),
+            data.get('end_time'),
+            data.get('start_date'),
+            data.get('end_date'),
+            assignment_id
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"Device content {assignment_id} schedule updated")
+        return jsonify({'success': 'Schedule updated successfully'})
+    
+    except Exception as e:
+        logger.error(f"Error updating device content schedule: {e}")
+        return jsonify({'error': 'Failed to update schedule'}), 500
+        
 # Delete device
 @app.route('/api/device/<device_id>', methods=['DELETE'])
 def delete_device(device_id):
