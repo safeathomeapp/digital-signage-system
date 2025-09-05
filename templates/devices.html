@@ -1219,33 +1219,67 @@
             });
         }
 		
-		// Setup device content bin functionality
-        function setupDeviceContentBin() {
-            const deviceBin = document.getElementById('deviceDeleteBin');
-            if (!deviceBin) return;
-            
-            deviceBin.addEventListener('dragover', function(e) {
-                if (deviceDraggedElement) {
-                    e.preventDefault();
-                    deviceBin.classList.add('drag-over');
-                }
-            });
-            
-            deviceBin.addEventListener('dragleave', function(e) {
-                if (deviceDraggedElement && !deviceBin.contains(e.relatedTarget)) {
-                    deviceBin.classList.remove('drag-over');
-                }
-            });
-            
-            deviceBin.addEventListener('drop', function(e) {
-                if (deviceDraggedElement) {
-                    e.preventDefault();
-                    deviceBin.classList.remove('drag-over');
-                    const assignmentId = deviceDraggedElement.dataset.assignmentId;
-                    removeContent(assignmentId);
-                }
-            });
-        }
+		// Setup device content bin functionality (OPTIMIZED)
+		function setupDeviceContentBin() {
+			const deviceBin = document.getElementById('deviceDeleteBin');
+			if (!deviceBin) return;
+			
+			deviceBin.addEventListener('dragover', function(e) {
+				if (deviceDraggedElement) {
+					e.preventDefault();
+					deviceBin.classList.add('drag-over');
+				}
+			});
+			
+			deviceBin.addEventListener('dragleave', function(e) {
+				if (deviceDraggedElement && !deviceBin.contains(e.relatedTarget)) {
+					deviceBin.classList.remove('drag-over');
+				}
+			});
+			
+			deviceBin.addEventListener('drop', function(e) {
+				if (deviceDraggedElement) {
+					e.preventDefault();
+					deviceBin.classList.remove('drag-over');
+					
+					// Get assignment ID before clearing dragged element
+					const assignmentId = deviceDraggedElement.dataset.assignmentId;
+					
+					// Clear drag state immediately
+					deviceDraggedElement = null;
+					
+					// Call removal asynchronously (non-blocking)
+					setTimeout(() => removeContentFromBin(assignmentId), 0);
+				}
+			});
+		}
+
+		// Optimized removal for bin drops
+		async function removeContentFromBin(assignmentId) {
+			try {
+				const response = await fetch(`/api/remove-content/${assignmentId}`, {
+					method: 'DELETE'
+				});
+
+				if (response.ok) {
+					// Remove from local array first for immediate UI feedback
+					currentDeviceContent = currentDeviceContent.filter(
+						content => content.assignment_id != assignmentId
+					);
+					
+					// Re-render with updated data
+					renderDeviceContent();
+				} else {
+					// On error, reload to ensure consistency
+					loadDeviceContent();
+					alert('Failed to remove content');
+				}
+			} catch (error) {
+				console.error('Remove error:', error);
+				loadDeviceContent();
+				alert('Error: ' + error.message);
+			}
+		}
 		
         // Reorder content
         async function reorderContent(fromIndex, toIndex) {
