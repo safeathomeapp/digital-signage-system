@@ -415,46 +415,45 @@ def get_media_list():
         logger.error(f"Error getting media list: {e}")
         return jsonify({'error': 'Failed to get media list'}), 500
 
-# Enhanced media details API
-@app.route('/api/media/detailed')
-def get_detailed_media_list():
+@app.route('/api/devices')
+def get_devices():
     try:
         conn = sqlite3.connect('signage.db')
         cursor = conn.execute('''
-            SELECT m.id, m.filename, m.original_name, m.file_type, m.file_size, m.created_at,
-                   (SELECT COUNT(*) FROM device_content WHERE media_id = m.id AND is_active = 1) as assignment_count,
-                   (SELECT MIN(start_date) FROM device_content WHERE media_id = m.id) as start_date,
-                   (SELECT MAX(end_date) FROM device_content WHERE media_id = m.id) as end_date,
-                   (SELECT MIN(is_active) FROM device_content WHERE media_id = m.id) as is_active,
-                   (SELECT display_duration FROM device_content WHERE media_id = m.id LIMIT 1) as display_duration,
-                   (SELECT start_time FROM device_content WHERE media_id = m.id LIMIT 1) as start_time,
-                   (SELECT end_time FROM device_content WHERE media_id = m.id LIMIT 1) as end_time,
-                   (SELECT days_of_week FROM device_content WHERE media_id = m.id LIMIT 1) as days_of_week
-            FROM media m
-            ORDER BY m.created_at DESC
+            SELECT d.device_id, d.device_name, d.custom_name, d.location, d.last_checkin,
+                   d.is_active, d.ip_address, d.app_version, d.created_at,
+                   COUNT(dc.id) as content_count
+            FROM devices d
+            LEFT JOIN device_content dc ON d.device_id = dc.device_id 
+                AND dc.is_active = 1 
+                AND dc.media_id IN (SELECT id FROM media)
+            GROUP BY d.device_id, d.device_name, d.custom_name, d.location, d.last_checkin,
+                     d.is_active, d.ip_address, d.app_version, d.created_at
+            ORDER BY d.last_checkin DESC
         ''')
         
-        media_list = []
+        devices = []
         for row in cursor.fetchall():
-            media_list.append({
-                'id': row[0],
-                'filename': row[1],
-                'original_name': row[2],
-                'file_type': row[3],
-                'file_size': row[4],
-                'created_at': row[5],
-                'assignment_count': row[6],
-                'start_date': row[7],
-                'end_date': row[8],
-                'is_active': bool(row[9]) if row[9] is not None else True,
-                'display_duration': row[10],
-                'start_time': row[11],
-                'end_time': row[12],
-                'days_of_week': row[13]
+            devices.append({
+                'device_id': row[0],
+                'device_name': row[1],
+                'custom_name': row[2],
+                'location': row[3],
+                'last_checkin': row[4],
+                'is_active': bool(row[5]),
+                'ip_address': row[6],
+                'app_version': row[7],
+                'created_at': row[8],
+                'content_count': row[9],
+                'display_name': row[2] if row[2] else row[1]
             })
         
         conn.close()
-        return jsonify(media_list)
+        return jsonify(devices)
+    
+    except Exception as e:
+        logger.error(f"Error getting devices: {e}")
+        return jsonify({'error': 'Failed to get devices'}), 500
     
     except Exception as e:
         logger.error(f"Error getting detailed media list: {e}")
@@ -501,6 +500,33 @@ def update_media_schedule(media_id):
         logger.error(f"Error updating media schedule: {e}")
         return jsonify({'error': 'Failed to update schedule'}), 500
 
+# Toggle content pause state
+@app.route('/api/device-content/<int:assignment_id>/pause', methods=['PUT'])
+def toggle_content_pause(assignment_id):
+    try:
+        data = request.get_json()
+        is_paused = data.get('is_paused', False)
+        
+        conn = sqlite3.connect('signage.db')
+        
+        # Update pause state (is_active is opposite of is_paused)
+        conn.execute('''
+            UPDATE device_content 
+            SET is_active = ? 
+            WHERE id = ?
+        ''', (not is_paused, assignment_id))
+        
+        conn.commit()
+        update_content_timestamp()
+        conn.close()
+        
+        logger.info(f"Content {assignment_id} {'paused' if is_paused else 'resumed'}")
+        return jsonify({'success': f'Content {"paused" if is_paused else "resumed"}'})
+    
+    except Exception as e:
+        logger.error(f"Error toggling content pause: {e}")
+        return jsonify({'error': 'Failed to update pause state'}), 500
+        
 # Assign media to all devices
 @app.route('/api/assign-all-devices', methods=['POST'])
 def assign_all_devices():
@@ -623,42 +649,6 @@ def delete_media(media_id):
         logger.error(f"Error deleting media: {e}")
         return jsonify({'error': 'Failed to delete media'}), 500
 
-# Device APIs
-@app.route('/api/devices')
-def get_devices():
-    try:
-        conn = sqlite3.connect('signage.db')
-        cursor = conn.execute('''
-            SELECT device_id, device_name, custom_name, location, last_checkin,
-                   is_active, ip_address, app_version, created_at,
-                   (SELECT COUNT(*) FROM device_content WHERE device_id = d.device_id AND is_active = 1) as content_count
-            FROM devices d
-            ORDER BY last_checkin DESC
-        ''')
-        
-        devices = []
-        for row in cursor.fetchall():
-            devices.append({
-                'device_id': row[0],
-                'device_name': row[1],
-                'custom_name': row[2],
-                'location': row[3],
-                'last_checkin': row[4],
-                'is_active': bool(row[5]),
-                'ip_address': row[6],
-                'app_version': row[7],
-                'created_at': row[8],
-                'content_count': row[9],
-                'display_name': row[2] if row[2] else row[1]
-            })
-        
-        conn.close()
-        return jsonify(devices)
-    
-    except Exception as e:
-        logger.error(f"Error getting devices: {e}")
-        return jsonify({'error': 'Failed to get devices'}), 500
-
 # Get device content with full scheduling data
 @app.route('/api/device/<device_id>/content')
 def get_device_content(device_id):
@@ -667,13 +657,13 @@ def get_device_content(device_id):
         cursor = conn.execute('''
             SELECT dc.id as assignment_id, dc.media_id, dc.display_duration, dc.play_order,
                    dc.days_of_week, dc.start_date, dc.end_date, dc.start_time, dc.end_time,
-                   m.filename, m.original_name, m.file_type, m.video_duration
+                   dc.is_active, m.filename, m.original_name, m.file_type, m.video_duration
             FROM device_content dc
             JOIN media m ON dc.media_id = m.id
-            WHERE dc.device_id = ? AND dc.is_active = 1
+            WHERE dc.device_id = ?
             ORDER BY dc.play_order ASC, dc.created_at ASC
         ''', (device_id,))
-        
+
         content = []
         for row in cursor.fetchall():
             content.append({
@@ -686,10 +676,11 @@ def get_device_content(device_id):
                 'end_date': row[6],
                 'start_time': row[7],
                 'end_time': row[8],
-                'filename': row[9],
-                'original_name': row[10],
-                'file_type': row[11],
-                'video_duration': row[12]
+                'is_paused': not bool(row[9]),  # ADD THIS LINE
+                'filename': row[10],            # UPDATED INDEX
+                'original_name': row[11],       # UPDATED INDEX
+                'file_type': row[12],           # UPDATED INDEX
+                'video_duration': row[13]       # UPDATED INDEX
             })
         
         conn.close()
@@ -1086,6 +1077,51 @@ def delete_device(device_id):
     except Exception as e:
         logger.error(f"Error deleting device: {e}")
         return jsonify({'error': 'Failed to delete device'}), 500
+# Add this new endpoint to your production_app.py file
+
+# Database cleanup endpoint
+@app.route('/api/system/cleanup', methods=['POST'])
+def cleanup_database():
+    """Clean up orphaned device_content records"""
+    try:
+        conn = sqlite3.connect('signage.db')
+        
+        # Delete device_content records where the media no longer exists
+        cursor = conn.execute('''
+            DELETE FROM device_content 
+            WHERE media_id NOT IN (SELECT id FROM media)
+        ''')
+        orphaned_content = cursor.rowcount
+        
+        # Delete device_content records where the device no longer exists
+        cursor = conn.execute('''
+            DELETE FROM device_content 
+            WHERE device_id NOT IN (SELECT device_id FROM devices)
+        ''')
+        orphaned_devices = cursor.rowcount
+        
+        # Delete analytics records where media no longer exists
+        cursor = conn.execute('''
+            DELETE FROM playback_analytics 
+            WHERE media_id NOT IN (SELECT id FROM media)
+        ''')
+        orphaned_analytics = cursor.rowcount
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"Database cleanup: {orphaned_content} orphaned content, {orphaned_devices} orphaned device assignments, {orphaned_analytics} orphaned analytics")
+        
+        return jsonify({
+            'success': True,
+            'orphaned_content_removed': orphaned_content,
+            'orphaned_device_assignments_removed': orphaned_devices,
+            'orphaned_analytics_removed': orphaned_analytics
+        })
+    
+    except Exception as e:
+        logger.error(f"Database cleanup error: {e}")
+        return jsonify({'error': 'Failed to cleanup database'}), 500
         
 if __name__ == '__main__':
     init_db()

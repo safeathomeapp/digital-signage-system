@@ -14,6 +14,220 @@
             min-height: 700px;
         }
 		
+		/* Device selection checkboxes */
+		.device-checkboxes {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 1rem;
+			padding: 1rem;
+			background-color: #f8f9fa;
+			border-radius: 0.5rem;
+			border: 1px solid #dee2e6;
+		}
+
+		.device-checkbox-item {
+			display: flex;
+			align-items: center;
+			padding: 0.5rem 1rem;
+			background-color: white;
+			border: 2px solid #dee2e6;
+			border-radius: 0.5rem;
+			transition: all 0.2s;
+			cursor: pointer;
+			min-width: 120px;
+		}
+
+		.device-checkbox-item:hover {
+			border-color: #0d6efd;
+			background-color: #f0f8ff;
+		}
+
+		.device-checkbox-item.checked {
+			border-color: #0d6efd;
+			background-color: #e7f1ff;
+		}
+
+		.device-checkbox-item.all-devices {
+			background-color: #e8f5e8;
+			border-color: #28a745;
+			font-weight: 600;
+		}
+
+		.device-checkbox-item.all-devices.checked {
+			background-color: #d4edda;
+			border-color: #155724;
+		}
+
+		.device-checkbox-item input[type="checkbox"] {
+			margin-right: 0.5rem;
+			transform: scale(1.2);
+		}
+
+		.device-checkbox-item .device-name {
+			flex: 1;
+			font-size: 0.9rem;
+		}
+
+		.device-checkbox-item .content-count {
+			font-size: 0.75rem;
+			color: #6c757d;
+			margin-left: 0.5rem;
+			background-color: #f8f9fa;
+			padding: 0.125rem 0.5rem;
+			border-radius: 1rem;
+		}
+
+		.device-checkbox-item.checked .content-count {
+			background-color: #0d6efd;
+			color: white;
+		}
+
+		/* Selected devices info */
+		.selected-devices-info {
+			margin-top: 1rem;
+			padding: 0.75rem;
+			background-color: #e7f1ff;
+			border-radius: 0.5rem;
+			border: 1px solid #b6d7ff;
+			font-size: 0.9rem;
+		}
+
+		.selected-devices-info.hidden {
+			display: none;
+		}
+		
+		/* Pause toggle switch - LARGER SIZE */
+		.pause-toggle {
+			position: relative;
+			display: inline-block;
+			width: 44px;
+			height: 26px;
+			margin-right: 0.5rem;
+		}
+
+		.pause-toggle input {
+			opacity: 0;
+			width: 0;
+			height: 0;
+		}
+
+		.toggle-slider {
+			position: absolute;
+			cursor: pointer;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background-color: #28a745;
+			transition: 0.3s;
+			border-radius: 26px;
+		}
+
+		.toggle-slider:before {
+			position: absolute;
+			content: "";
+			height: 20px;
+			width: 20px;
+			left: 3px;
+			bottom: 3px;
+			background-color: white;
+			transition: 0.3s;
+			border-radius: 50%;
+		}
+
+		input:checked + .toggle-slider {
+			background-color: #ffc107;
+		}
+
+		input:checked + .toggle-slider:before {
+			transform: translateX(18px);
+		}
+
+		/* Status indicator overlay on thumbnail */
+		.device-content-thumbnail-container {
+			position: relative;
+			display: inline-block;
+		}
+
+		.thumbnail-status {
+			position: absolute;
+			top: 2px;
+			right: 2px;
+			width: 22px;
+			height: 22px;
+			border-radius: 50%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 11px;
+			color: white;
+			z-index: 2;
+		}
+
+		.status-playing {
+			background-color: #28a745;
+		}
+
+		.status-paused {
+			background-color: #ffc107;
+			color: #212529;
+		}
+		
+		/* Color-coded detail badges - REORDERED: file-type, duration, days, times, dates */
+		.detail-display.file-type {
+			color: #6f42c1;
+			background-color: #f3e8ff;
+			padding: 0.125rem 0.5rem;
+			border-radius: 0.25rem;
+			border: 1px solid #d1b3ff;
+		}
+
+		.detail-display.duration {
+			color: #0d6efd;
+			background-color: #e7f1ff;
+			padding: 0.125rem 0.5rem;
+			border-radius: 0.25rem;
+			border: 1px solid #b6d7ff;
+		}
+
+		.detail-display.days {
+			color: #198754;
+			background-color: #d1e7dd;
+			padding: 0.125rem 0.5rem;
+			border-radius: 0.25rem;
+			border: 1px solid #a3cfbb;
+		}
+
+		.detail-display.times {
+			color: #fd7e14;
+			background-color: #ffe8d1;
+			padding: 0.125rem 0.5rem;
+			border-radius: 0.25rem;
+			border: 1px solid #ffb366;
+		}
+
+		.detail-display.dates {
+			color: #dc3545;
+			background-color: #f8d7da;
+			padding: 0.125rem 0.5rem;
+			border-radius: 0.25rem;
+			border: 1px solid #f1aeb5;
+		}
+
+		/* MULTI-DEVICE DISABLED STATES */
+		.detail-display.disabled {
+			color: #6c757d !important;
+			background-color: #f8f9fa !important;
+			border-color: #dee2e6 !important;
+			opacity: 0.6;
+		}
+
+		.detail-display i {
+			width: 12px;
+			text-align: center;
+			margin-right: 0.25rem;
+		}
+
 		.action-button, .delete-bin {
 			border: 2px solid;
 			border-radius: 0.375rem;
@@ -72,17 +286,6 @@
 			margin-right: 0.25rem;
 		}
 		
-		.delete-bin.drag-over {
-			background-color: #f8d7da;
-			border-color: #721c24;
-			color: #721c24;
-			transform: scale(1.05);
-		}
-
-		.delete-bin i {
-			margin-right: 0.25rem;
-		}
-		
         .media-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -119,16 +322,16 @@
         }
 
         .media-thumbnail {
-            width: 100px;  /* was 80px */
-			height: 100px; /* was 80px */
+            width: 100px;
+			height: 100px;
             object-fit: cover;
             border-radius: 0.5rem;
             border: 2px solid #dee2e6;
         }
 
         .thumbnail-placeholder {
-            width: 100px;  /* was 80px */
-			height: 100px; /* was 80px */
+            width: 100px;
+			height: 100px;
             background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
             border-radius: 0.5rem;
             display: flex;
@@ -140,8 +343,8 @@
         }
 
 		.video-thumbnail {
-			width: 100px;  /* was 80px */
-			height: 100px; /* was 80px */
+			width: 100px;
+			height: 100px;
 			object-fit: cover;
 			border-radius: 0.5rem;
 			border: 2px solid #dee2e6;
@@ -205,6 +408,26 @@
         .device-content-item.being-dragged {
             opacity: 0.5;
         }
+
+		/* MULTI-DEVICE DISABLED STATES */
+		.device-content-item.multi-device-disabled {
+			opacity: 0.7;
+			background-color: #f8f9fa;
+			/* Remove cursor: not-allowed - keep default cursor for drag-to-delete */
+		}
+
+		.device-content-item.multi-device-disabled .drag-handle {
+			opacity: 0.3;
+			cursor: not-allowed;
+			pointer-events: none;
+		}
+
+		.device-content-item.multi-device-disabled .drag-handle:hover {
+			cursor: not-allowed;
+		}
+
+		/* Remove the draggable cursor override */
+		/* .device-content-item.multi-device-disabled[draggable="true"] - deleted */
 
         .device-content-thumbnail {
             width: 50px;
@@ -311,12 +534,6 @@
             flex-shrink: 0;
         }
 
-        .device-selector {
-            position: sticky;
-            top: 1rem;
-            z-index: 10;
-        }
-		
 		.device-content-item.editing {
 			background-color: #f8f9fa;
 			border-color: #0d6efd;
@@ -386,6 +603,19 @@
 			background-color: #e9ecef !important;
 			opacity: 0.6;
 		}
+
+		/* BUTTON DISABLED STATES */
+		.btn.disabled-multi-device {
+			opacity: 0.4;
+			cursor: not-allowed;
+			pointer-events: none;
+			background-color: #6c757d !important;
+			border-color: #6c757d !important;
+		}
+
+		.btn.disabled-multi-device:hover {
+			cursor: not-allowed;
+		}
     </style>
 </head>
 <body class="bg-light">
@@ -438,8 +668,8 @@
             <!-- Right Panel - Device Content -->
             <div class="col-md-7">
                 <div class="device-panel p-4">
-                    <!-- Device Selector -->
-                    <div class="device-selector bg-white p-3 rounded mb-3">
+                    <!-- Device Selection Checkboxes -->
+                    <div class="bg-white p-3 rounded mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h5 class="mb-0">
                                 <i class="fas fa-desktop me-2"></i>Device Content
@@ -459,20 +689,28 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="row align-items-center">
-                            <div class="col-md-10">
-                                <select id="deviceSelector" class="form-select" onchange="loadDeviceContent()">
-                                    <option value="">Select a device...</option>
-                                </select>
+                        
+                        <!-- Device Checkboxes -->
+                        <div id="deviceCheckboxes" class="device-checkboxes">
+                            <div class="text-center w-100">
+                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                <span class="ms-2">Loading devices...</span>
                             </div>
                         </div>
+                        
+                        <!-- Selected Devices Info -->
+                        <div id="selectedDevicesInfo" class="selected-devices-info hidden">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <span id="selectedDevicesText">No devices selected</span>
+                        </div>
                     </div>
+                    
                     <!-- Device Content Area -->
                     <div id="deviceContentArea">
                         <div class="drop-zone">
                             <i class="fas fa-tv fa-3x mb-3"></i>
-                            <h6>Select a device to manage content</h6>
-                            <p class="mb-0">Choose a device from the dropdown above to view and manage its content</p>
+                            <h6>Select devices to manage content</h6>
+                            <p class="mb-0">Check device boxes above to view and manage their content</p>
                         </div>
                     </div>
                 </div>
@@ -559,7 +797,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentDevices = [];
-        let currentDeviceId = null;
+        let selectedDeviceIds = [];
         let currentDeviceContent = [];
         let libraryDraggedElement = null;
         let deviceDraggedElement = null;
@@ -572,23 +810,212 @@
             setupUploadModal();
         });
 
-        // Load devices
+        // Load devices and create checkboxes
         async function loadDevices() {
             try {
                 const response = await fetch('/api/devices');
                 currentDevices = await response.json();
                 
-                const selector = document.getElementById('deviceSelector');
-                selector.innerHTML = '<option value="">Select a device...</option>';
+                renderDeviceCheckboxes();
                 
-                currentDevices.forEach(device => {
-                    const option = document.createElement('option');
-                    option.value = device.device_id;
-                    option.textContent = device.display_name || device.device_name;
-                    selector.appendChild(option);
-                });
             } catch (error) {
                 console.error('Error loading devices:', error);
+                document.getElementById('deviceCheckboxes').innerHTML = '<div class="text-danger">Error loading devices</div>';
+            }
+        }
+
+        // Render device checkboxes
+        function renderDeviceCheckboxes() {
+            const container = document.getElementById('deviceCheckboxes');
+            
+            if (currentDevices.length === 0) {
+                container.innerHTML = '<div class="text-muted">No devices found</div>';
+                return;
+            }
+            
+            let html = '';
+            
+            // Add "ALL" checkbox first
+			html += `
+				<div class="device-checkbox-item all-devices" onclick="toggleAllDevices()">
+					<input type="checkbox" id="device_all" 
+						   onchange="handleAllDevicesChange(event)"
+						   onclick="event.stopPropagation()">
+					<span class="device-name">ALL DEVICES</span>
+				</div>
+			`;
+            
+            // Add individual device checkboxes
+			currentDevices.forEach(device => {
+				const displayName = device.display_name || device.device_name;
+				html += `
+					<div class="device-checkbox-item" onclick="toggleDevice('${device.device_id}')">
+						<input type="checkbox" id="device_${device.device_id}" 
+							   onchange="handleDeviceChange(event, '${device.device_id}')"
+							   onclick="event.stopPropagation()">
+						<span class="device-name">${displayName}</span>
+						<span class="content-count">${device.content_count}</span>
+					</div>
+				`;
+			});
+            
+            container.innerHTML = html;
+        }
+
+        // Handle "ALL" checkbox toggle
+        function toggleAllDevices() {
+            const allCheckbox = document.getElementById('device_all');
+            allCheckbox.checked = !allCheckbox.checked;
+            handleAllDevicesChange({ stopPropagation: () => {} });
+        }
+
+        function handleAllDevicesChange(event) {
+            event.stopPropagation();
+            const allCheckbox = document.getElementById('device_all');
+            const isChecked = allCheckbox.checked;
+            
+            // Update all individual device checkboxes
+            currentDevices.forEach(device => {
+                const deviceCheckbox = document.getElementById(`device_${device.device_id}`);
+                if (deviceCheckbox) {
+                    deviceCheckbox.checked = isChecked;
+                    const container = deviceCheckbox.closest('.device-checkbox-item');
+                    if (isChecked) {
+                        container.classList.add('checked');
+                    } else {
+                        container.classList.remove('checked');
+                    }
+                }
+            });
+            
+            // Update selected devices array
+            if (isChecked) {
+                selectedDeviceIds = currentDevices.map(d => d.device_id);
+            } else {
+                selectedDeviceIds = [];
+            }
+            
+            // Update ALL checkbox visual state
+            const allContainer = allCheckbox.closest('.device-checkbox-item');
+            if (isChecked) {
+                allContainer.classList.add('checked');
+            } else {
+                allContainer.classList.remove('checked');
+            }
+            
+            updateSelectedDevicesInfo();
+            loadCommonContent();
+        }
+
+        // Handle individual device checkbox toggle
+        function toggleDevice(deviceId) {
+            const deviceCheckbox = document.getElementById(`device_${deviceId}`);
+            deviceCheckbox.checked = !deviceCheckbox.checked;
+            handleDeviceChange({ stopPropagation: () => {} }, deviceId);
+        }
+
+        function handleDeviceChange(event, deviceId) {
+            event.stopPropagation();
+            const deviceCheckbox = document.getElementById(`device_${deviceId}`);
+            const isChecked = deviceCheckbox.checked;
+            const container = deviceCheckbox.closest('.device-checkbox-item');
+            
+            // Update visual state
+            if (isChecked) {
+                container.classList.add('checked');
+                if (!selectedDeviceIds.includes(deviceId)) {
+                    selectedDeviceIds.push(deviceId);
+                }
+            } else {
+                container.classList.remove('checked');
+                selectedDeviceIds = selectedDeviceIds.filter(id => id !== deviceId);
+            }
+            
+            // Update ALL checkbox state
+            const allCheckbox = document.getElementById('device_all');
+            const allContainer = allCheckbox.closest('.device-checkbox-item');
+            
+            if (selectedDeviceIds.length === currentDevices.length) {
+                allCheckbox.checked = true;
+                allContainer.classList.add('checked');
+            } else {
+                allCheckbox.checked = false;
+                allContainer.classList.remove('checked');
+            }
+            
+            updateSelectedDevicesInfo();
+            loadCommonContent();
+        }
+
+        // Update selected devices info display
+        function updateSelectedDevicesInfo() {
+            const infoDiv = document.getElementById('selectedDevicesInfo');
+            const textSpan = document.getElementById('selectedDevicesText');
+            
+            if (selectedDeviceIds.length === 0) {
+                infoDiv.classList.add('hidden');
+                textSpan.textContent = 'No devices selected';
+            } else if (selectedDeviceIds.length === currentDevices.length) {
+                infoDiv.classList.remove('hidden');
+                textSpan.textContent = `All devices selected (${selectedDeviceIds.length})`;
+            } else {
+                infoDiv.classList.remove('hidden');
+                const deviceNames = selectedDeviceIds.map(id => {
+                    const device = currentDevices.find(d => d.device_id === id);
+                    return device ? (device.display_name || device.device_name) : id;
+                });
+                textSpan.textContent = `Selected devices: ${deviceNames.join(', ')}`;
+            }
+        }
+
+        // Load common content across selected devices
+        async function loadCommonContent() {
+            const contentArea = document.getElementById('deviceContentArea');
+            
+            if (selectedDeviceIds.length === 0) {
+                contentArea.innerHTML = `
+                    <div class="drop-zone">
+                        <i class="fas fa-tv fa-3x mb-3"></i>
+                        <h6>Select devices to manage content</h6>
+                        <p class="mb-0">Check device boxes above to view and manage their content</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            try {
+                // Load content for all selected devices
+                const deviceContents = await Promise.all(
+                    selectedDeviceIds.map(async deviceId => {
+                        const response = await fetch(`/api/device/${deviceId}/content`);
+                        const content = await response.json();
+                        return { deviceId, content };
+                    })
+                );
+                
+                // Find common content across selected devices
+                let commonContent = [];
+                
+                if (selectedDeviceIds.length === 1) {
+                    // Single device - show all content
+                    commonContent = deviceContents[0].content;
+                } else {
+                    // Multiple devices - find intersection
+                    const firstDeviceContent = deviceContents[0].content;
+                    
+                    commonContent = firstDeviceContent.filter(item => {
+                        return deviceContents.every(deviceData => 
+                            deviceData.content.some(content => content.media_id === item.media_id)
+                        );
+                    });
+                }
+                
+                currentDeviceContent = commonContent;
+                renderDeviceContent();
+                
+            } catch (error) {
+                console.error('Error loading device content:', error);
+                contentArea.innerHTML = '<p class="text-danger">Error loading device content.</p>';
             }
         }
 
@@ -642,8 +1069,8 @@
 			video.onloadedmetadata = function() {
 				// Set canvas size to match video aspect ratio but constrained to thumbnail size
 				const aspectRatio = video.videoWidth / video.videoHeight;
-				canvas.width = 100;  // was 80
-				canvas.height = 100; // was 80
+				canvas.width = 100;
+				canvas.height = 100;
 				
 				// Seek to 5 seconds in, or 10% through the video, whichever is smaller
 				const seekTime = Math.min(5, video.duration * 0.1);
@@ -657,98 +1084,6 @@
 					
 					// Convert to data URL
 					const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.7);
-					
-					// Cache the thumbnail
-					localStorage.setItem(`video_thumb_${media.id}`, thumbnailUrl);
-					
-					callback(thumbnailUrl);
-				} catch (error) {
-					console.error('Error generating thumbnail:', error);
-					callback(null);
-				} finally {
-					video.remove();
-					canvas.remove();
-				}
-			};
-			
-			video.onerror = function() {
-				console.error('Error loading video for thumbnail');
-				callback(null);
-				video.remove();
-				canvas.remove();
-			};
-			
-			video.src = `/uploads/${media.filename}`;
-		}
-
-		// Generate video thumbnail
-		function generateVideoThumbnail(media, callback) {
-			const video = document.createElement('video');
-			const canvas = document.createElement('canvas');
-			const ctx = canvas.getContext('2d');
-			
-			video.crossOrigin = 'anonymous';
-			video.muted = true;
-			video.preload = 'metadata';
-			
-			video.onloadedmetadata = function() {
-				// Set canvas size to 80x80 for consistent thumbnail size
-				canvas.width = 80;
-				canvas.height = 80;
-				
-				// Fill with white background
-				ctx.fillStyle = '#ffffff';
-				ctx.fillRect(0, 0, canvas.width, canvas.height);
-				
-				// Calculate aspect ratio and positioning
-				const videoAspect = video.videoWidth / video.videoHeight;
-				const canvasAspect = canvas.width / canvas.height; // 1:1 (square)
-				
-				let drawWidth, drawHeight, drawX, drawY;
-				
-				if (videoAspect > canvasAspect) {
-					// Video is wider - fit to width
-					drawWidth = canvas.width;
-					drawHeight = canvas.width / videoAspect;
-					drawX = 0;
-					drawY = (canvas.height - drawHeight) / 2;
-				} else {
-					// Video is taller - fit to height
-					drawWidth = canvas.height * videoAspect;
-					drawHeight = canvas.height;
-					drawX = (canvas.width - drawWidth) / 2;
-					drawY = 0;
-				}
-				
-				// Seek to 5 seconds in, or 10% through the video, whichever is smaller
-				const seekTime = Math.min(5, video.duration * 0.1);
-				video.currentTime = seekTime;
-			};
-			
-			video.onseeked = function() {
-				try {
-					// Draw video frame centered on white background
-					const videoAspect = video.videoWidth / video.videoHeight;
-					const canvasAspect = canvas.width / canvas.height;
-					
-					let drawWidth, drawHeight, drawX, drawY;
-					
-					if (videoAspect > canvasAspect) {
-						drawWidth = canvas.width;
-						drawHeight = canvas.width / videoAspect;
-						drawX = 0;
-						drawY = (canvas.height - drawHeight) / 2;
-					} else {
-						drawWidth = canvas.height * videoAspect;
-						drawHeight = canvas.height;
-						drawX = (canvas.width - drawWidth) / 2;
-						drawY = 0;
-					}
-					
-					ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight);
-					
-					// Convert to data URL
-					const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8);
 					
 					// Cache the thumbnail
 					localStorage.setItem(`video_thumb_${media.id}`, thumbnailUrl);
@@ -886,109 +1221,106 @@
 					return;
 				}
 				
-				// Handle device assignment drop
+				// Handle device assignment drop - NOW ASSIGNS TO MULTIPLE DEVICES
 				const dropZone = e.target.closest('.drop-zone');
-				if (dropZone && currentDeviceId) {
+				if (dropZone && selectedDeviceIds.length > 0) {
 					dropZone.classList.remove('drag-over');
 					const mediaId = libraryDraggedElement.dataset.mediaId;
-					assignMediaToDevice(mediaId);
+					assignMediaToSelectedDevices(mediaId);
 				}
 			}
 		}
 
-        // Assign media to device with proper defaults
-			async function assignMediaToDevice(mediaId) {
-				try {
-					// First, get media details to determine if it's video or image and get video duration
-					const mediaResponse = await fetch(`/api/media/${mediaId}`);
-					const media = await mediaResponse.json();
-					
-					if (!media) {
-						alert('Media not found');
-						return;
-					}
-					
-					// Set duration based on media type
-					const isVideo = media.file_type === 'video';
-					let displayDuration = 10; // Default for images
-					
-					if (isVideo && media.video_duration) {
-						displayDuration = media.video_duration; // Use actual video duration
-					}
-					
-					// Get today's date for start date
-					const today = new Date().toISOString().split('T')[0];
-					
-					// Prepare assignment data with defaults
-					const assignmentData = {
-						device_id: currentDeviceId,
-						media_id: parseInt(mediaId),
-						display_duration: displayDuration,
-						days_of_week: ['all'], // All days as standard
-						start_date: today, // Today's date
-						end_date: null, // No end date
-						start_time: null, // All day
-						end_time: null // All day
-					};
-					
-					const response = await fetch('/api/assign-content-with-schedule', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify(assignmentData)
-					});
-
-					const result = await response.json();
-
-					if (result.success) {
-						loadDeviceContent();
-					} else {
-						alert('Assignment failed: ' + result.error);
-					}
-				} catch (error) {
-					console.error('Assignment error:', error);
-					alert('Assignment error: ' + error.message);
-				}
-			}
-        // Load device content
-        async function loadDeviceContent() {
-            currentDeviceId = document.getElementById('deviceSelector').value;
-            const contentArea = document.getElementById('deviceContentArea');
-            
-            if (!currentDeviceId) {
-                contentArea.innerHTML = `
-                    <div class="drop-zone">
-                        <i class="fas fa-tv fa-3x mb-3"></i>
-                        <h6>Select a device to manage content</h6>
-                        <p class="mb-0">Choose a device from the dropdown above to view and manage its content</p>
-                    </div>
-                `;
+        // Assign media to multiple selected devices
+        async function assignMediaToSelectedDevices(mediaId) {
+            if (selectedDeviceIds.length === 0) {
+                alert('No devices selected');
                 return;
             }
-
+            
             try {
-                const response = await fetch(`/api/device/${currentDeviceId}/content`);
-                currentDeviceContent = await response.json();
+                // Get media details first
+                const mediaResponse = await fetch(`/api/media/${mediaId}`);
+                const media = await mediaResponse.json();
                 
-                renderDeviceContent();
+                if (!media) {
+                    alert('Media not found');
+                    return;
+                }
+                
+                // Set duration based on media type
+                const isVideo = media.file_type === 'video';
+                let displayDuration = 10; // Default for images
+                
+                if (isVideo && media.video_duration) {
+                    displayDuration = media.video_duration; // Use actual video duration
+                }
+                
+                // Get today's date for start date
+                const today = new Date().toISOString().split('T')[0];
+                
+                // Assign to all selected devices
+                const assignmentPromises = selectedDeviceIds.map(deviceId => {
+                    const assignmentData = {
+                        device_id: deviceId,
+                        media_id: parseInt(mediaId),
+                        display_duration: displayDuration,
+                        days_of_week: ['all'],
+                        start_date: today,
+                        end_date: null,
+                        start_time: null,
+                        end_time: null
+                    };
+                    
+                    return fetch('/api/assign-content-with-schedule', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(assignmentData)
+                    });
+                });
+                
+                const results = await Promise.all(assignmentPromises);
+                
+                // Check if all assignments were successful
+                const successCount = results.filter(response => response.ok).length;
+                
+                if (successCount === selectedDeviceIds.length) {
+                    alert(`Content assigned to ${successCount} device(s) successfully`);
+                    loadCommonContent(); // Refresh content display
+                } else {
+                    alert(`Assigned to ${successCount} out of ${selectedDeviceIds.length} devices`);
+                    loadCommonContent(); // Refresh content display
+                }
                 
             } catch (error) {
-                console.error('Error loading device content:', error);
-                contentArea.innerHTML = '<p class="text-danger">Error loading device content.</p>';
+                console.error('Assignment error:', error);
+                alert('Assignment error: ' + error.message);
             }
         }
 
-        // Render device content with inline editing
+        // Render device content with inline editing - UPDATED FOR MULTI-DEVICE SUPPORT
         function renderDeviceContent() {
             const contentArea = document.getElementById('deviceContentArea');
+            const isMultiDevice = selectedDeviceIds.length > 1;
             
             if (currentDeviceContent.length === 0) {
-                contentArea.innerHTML = `
-                    <div class="drop-zone">
-                        <i class="fas fa-plus-circle fa-3x mb-3"></i>
-                        <h6>No content assigned to this device</h6>
-                        <p class="mb-0">Drag media files from the library to assign them to this device</p>
-                    </div>
-                `;
+                if (selectedDeviceIds.length === 0) {
+                    contentArea.innerHTML = `
+                        <div class="drop-zone">
+                            <i class="fas fa-tv fa-3x mb-3"></i>
+                            <h6>Select devices to manage content</h6>
+                            <p class="mb-0">Check device boxes above to view and manage their content</p>
+                        </div>
+                    `;
+                } else {
+                    contentArea.innerHTML = `
+                        <div class="drop-zone">
+                            <i class="fas fa-plus-circle fa-3x mb-3"></i>
+                            <h6>No common content found</h6>
+                            <p class="mb-0">Drag media files from the library to assign them to selected devices</p>
+                        </div>
+                    `;
+                }
                 return;
             }
 
@@ -997,39 +1329,46 @@
             currentDeviceContent.forEach((content, index) => {
                 const thumbnail = createDeviceThumbnail(content);
                 const isVideo = content.file_type === 'video';
+                const itemClass = isMultiDevice ? 'device-content-item multi-device-disabled' : 'device-content-item';
+                const draggableAttr = 'draggable="true"'; // Always allow dragging for delete functionality
                 
                 html += `
-                    <div class="device-content-item" draggable="true" data-assignment-id="${content.assignment_id}" data-index="${index}">
+                    <div class="${itemClass}" ${draggableAttr} data-assignment-id="${content.assignment_id}" data-index="${index}">
                         <div class="play-order">${index + 1}</div>
-                        <div class="drag-handle" title="Drag to reorder">
+                        <div class="drag-handle" title="${isMultiDevice ? 'Reordering disabled for multiple devices' : 'Drag to reorder'}">
                             <i class="fas fa-grip-vertical"></i>
                         </div>
-                        ${thumbnail}
+                        <div class="device-content-thumbnail-container">
+							${thumbnail}
+							<div class="thumbnail-status ${content.is_paused ? 'status-paused' : 'status-playing'}">
+								<i class="fas ${content.is_paused ? 'fa-pause' : 'fa-play'}"></i>
+							</div>
+						</div>
                         <div class="device-content-info">
                             <div class="device-content-title">${content.original_name}</div>
                             
-                            <!-- Display Mode Details -->
+                            <!-- Display Mode Details - REORDERED: file-type, duration, days, times, dates -->
                             <div class="content-details-display" id="details_${content.assignment_id}">
                                 <div class="content-details-row">
-									<div class="detail-display">
-										<i class="fas fa-clock"></i>
-										<span>${content.display_duration}s</span>
-									</div>
-									<div class="detail-display">
+									<div class="detail-display file-type">
 										<i class="fas fa-file"></i>
 										<span>${content.file_type}</span>
 									</div>
-									<div class="detail-display">
+									<div class="detail-display duration ${isMultiDevice ? 'disabled' : ''}">
+										<i class="fas fa-clock"></i>
+										<span>${isMultiDevice ? '--s' : content.display_duration + 's'}</span>
+									</div>
+									<div class="detail-display days ${isMultiDevice ? 'disabled' : ''}">
 										<i class="fas fa-calendar"></i>
-										<span>${formatDaysDisplay(content.days_of_week)}</span>
+										<span>${isMultiDevice ? 'n/a' : formatDaysDisplay(content.days_of_week)}</span>
 									</div>
-									<div class="detail-display">
-										<i class="fas fa-play"></i>
-										<span>${formatTimeDisplay(content.start_time, content.end_time)}</span>
+									<div class="detail-display times ${isMultiDevice ? 'disabled' : ''}">
+										<i class="fas fa-clock"></i>
+										<span>${isMultiDevice ? '--/--' : formatTimeDisplay(content.start_time, content.end_time)}</span>
 									</div>
-									<div class="detail-display">
+									<div class="detail-display dates ${isMultiDevice ? 'disabled' : ''}">
 										<i class="fas fa-calendar-alt"></i>
-										<span>${formatDateDisplay(content.start_date, content.end_date)}</span>
+										<span>${isMultiDevice ? '--/--' : formatDateDisplay(content.start_date, content.end_date)}</span>
 									</div>
 								</div>
                             </div>
@@ -1131,10 +1470,18 @@
                             </div>
                         </div>
                         <div class="device-content-actions">
-                            <button class="btn btn-outline-primary btn-sm" onclick="editContent(${content.assignment_id})" title="Edit">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                        </div>
+							<label class="pause-toggle" title="${content.is_paused ? 'Resume' : 'Pause'} content">
+								<input type="checkbox" ${content.is_paused ? 'checked' : ''} 
+									   onchange="toggleContentPause(${content.assignment_id}, this.checked)">
+								<span class="toggle-slider"></span>
+							</label>
+							<button class="btn btn-outline-primary btn-sm ${isMultiDevice ? 'disabled-multi-device' : ''}" 
+                                    onclick="${isMultiDevice ? '' : `editContent(${content.assignment_id})`}" 
+                                    title="${isMultiDevice ? 'Editing disabled for multiple devices' : 'Edit'}"
+                                    ${isMultiDevice ? 'disabled' : ''}>
+								<i class="fas fa-edit"></i>
+							</button>
+						</div>
                     </div>
                 `;
             });
@@ -1144,13 +1491,13 @@
             html += `
                 <div class="drop-zone mt-3">
                     <i class="fas fa-plus-circle fa-2x mb-2"></i>
-                    <p class="mb-0">Drag more media here to add to this device</p>
+                    <p class="mb-0">Drag more media here to add to selected devices</p>
                 </div>
             `;
             
             contentArea.innerHTML = html;
             
-            setupDeviceReordering();
+			setupDeviceReordering(); // Always call, but reordering logic is conditional inside
             setupDeviceContentBin();
         }
 
@@ -1163,63 +1510,67 @@
             }
         }
 
-        // Setup device content reordering
-        function setupDeviceReordering() {
-            const contentItems = document.querySelectorAll('.device-content-item');
-            
-            contentItems.forEach(item => {
-                item.addEventListener('dragstart', function(e) {
-                    if (!libraryDraggedElement) {
-                        deviceDraggedElement = e.currentTarget;
-                        deviceDraggedElement.classList.add('being-dragged');
-                        e.dataTransfer.effectAllowed = 'move';
-                        e.dataTransfer.setData('text/plain', 'reorder');
-                    } else {
-                        e.preventDefault();
-                    }
-                });
+        // Setup device content reordering - ONLY FOR SINGLE DEVICE
+		function setupDeviceReordering() {
+			const contentItems = document.querySelectorAll('.device-content-item');
+			const isMultiDevice = selectedDeviceIds.length > 1;
+			
+			contentItems.forEach(item => {
+				item.addEventListener('dragstart', function(e) {
+					if (!libraryDraggedElement) {
+						deviceDraggedElement = e.currentTarget;
+						deviceDraggedElement.classList.add('being-dragged');
+						e.dataTransfer.effectAllowed = 'move';
+						e.dataTransfer.setData('text/plain', 'reorder');
+					} else {
+						e.preventDefault();
+					}
+				});
 
-                item.addEventListener('dragend', function(e) {
-                    if (deviceDraggedElement) {
-                        deviceDraggedElement.classList.remove('being-dragged');
-                        deviceDraggedElement = null;
-                        
-                        document.querySelectorAll('.device-content-item').forEach(el => {
-                            el.classList.remove('drag-over');
-                        });
-                    }
-                });
+				item.addEventListener('dragend', function(e) {
+					if (deviceDraggedElement) {
+						deviceDraggedElement.classList.remove('being-dragged');
+						deviceDraggedElement = null;
+						
+						document.querySelectorAll('.device-content-item').forEach(el => {
+							el.classList.remove('drag-over');
+						});
+					}
+				});
 
-                item.addEventListener('dragover', function(e) {
-                    if (deviceDraggedElement && !libraryDraggedElement && deviceDraggedElement !== e.currentTarget) {
-                        e.preventDefault();
-                        e.currentTarget.classList.add('drag-over');
-                        e.dataTransfer.dropEffect = 'move';
-                    }
-                });
+				// Only allow reordering drops for single device selection
+				if (!isMultiDevice) {
+					item.addEventListener('dragover', function(e) {
+						if (deviceDraggedElement && !libraryDraggedElement && deviceDraggedElement !== e.currentTarget) {
+							e.preventDefault();
+							e.currentTarget.classList.add('drag-over');
+							e.dataTransfer.dropEffect = 'move';
+						}
+					});
 
-                item.addEventListener('dragleave', function(e) {
-                    if (deviceDraggedElement && !libraryDraggedElement) {
-                        e.currentTarget.classList.remove('drag-over');
-                    }
-                });
+					item.addEventListener('dragleave', function(e) {
+						if (deviceDraggedElement && !libraryDraggedElement) {
+							e.currentTarget.classList.remove('drag-over');
+						}
+					});
 
-                item.addEventListener('drop', function(e) {
-                    if (deviceDraggedElement && !libraryDraggedElement && deviceDraggedElement !== e.currentTarget) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        e.currentTarget.classList.remove('drag-over');
-                        
-                        const fromIndex = parseInt(deviceDraggedElement.dataset.index);
-                        const toIndex = parseInt(e.currentTarget.dataset.index);
-                        
-                        reorderContent(fromIndex, toIndex);
-                    }
-                });
-            });
-        }
+					item.addEventListener('drop', function(e) {
+						if (deviceDraggedElement && !libraryDraggedElement && deviceDraggedElement !== e.currentTarget) {
+							e.preventDefault();
+							e.stopPropagation();
+							e.currentTarget.classList.remove('drag-over');
+							
+							const fromIndex = parseInt(deviceDraggedElement.dataset.index);
+							const toIndex = parseInt(e.currentTarget.dataset.index);
+							
+							reorderContent(fromIndex, toIndex);
+						}
+					});
+				}
+			});
+		}
 		
-		// Setup device content bin functionality (OPTIMIZED)
+		// Setup device content bin functionality
 		function setupDeviceContentBin() {
 			const deviceBin = document.getElementById('deviceDeleteBin');
 			if (!deviceBin) return;
@@ -1242,47 +1593,20 @@
 					e.preventDefault();
 					deviceBin.classList.remove('drag-over');
 					
-					// Get assignment ID before clearing dragged element
 					const assignmentId = deviceDraggedElement.dataset.assignmentId;
-					
-					// Clear drag state immediately
 					deviceDraggedElement = null;
-					
-					// Call removal asynchronously (non-blocking)
 					setTimeout(() => removeContentFromBin(assignmentId), 0);
 				}
 			});
 		}
 
-		// Optimized removal for bin drops
-		async function removeContentFromBin(assignmentId) {
-			try {
-				const response = await fetch(`/api/remove-content/${assignmentId}`, {
-					method: 'DELETE'
-				});
-
-				if (response.ok) {
-					// Remove from local array first for immediate UI feedback
-					currentDeviceContent = currentDeviceContent.filter(
-						content => content.assignment_id != assignmentId
-					);
-					
-					// Re-render with updated data
-					renderDeviceContent();
-				} else {
-					// On error, reload to ensure consistency
-					loadDeviceContent();
-					alert('Failed to remove content');
-				}
-			} catch (error) {
-				console.error('Remove error:', error);
-				loadDeviceContent();
-				alert('Error: ' + error.message);
-			}
-		}
-		
         // Reorder content
         async function reorderContent(fromIndex, toIndex) {
+            if (selectedDeviceIds.length !== 1) {
+                alert('Content reordering only works when exactly one device is selected');
+                return;
+            }
+            
             const item = currentDeviceContent.splice(fromIndex, 1)[0];
             currentDeviceContent.splice(toIndex, 0, item);
             
@@ -1296,7 +1620,7 @@
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        device_id: currentDeviceId,
+                        device_id: selectedDeviceIds[0],
                         content_order: updates
                     })
                 });
@@ -1305,32 +1629,88 @@
                     renderDeviceContent();
                 } else {
                     alert('Failed to reorder content');
-                    loadDeviceContent();
+                    loadCommonContent();
                 }
             } catch (error) {
                 console.error('Error reordering content:', error);
                 alert('Error reordering content: ' + error.message);
-                loadDeviceContent();
+                loadCommonContent();
             }
         }
 
-        // Remove content
-        async function removeContent(assignmentId) {
-            if (!confirm('Remove this content from the device?')) {
-                return;
-            }
-
+        // Remove content from bin
+        async function removeContentFromBin(assignmentId) {
             try {
-                const response = await fetch(`/api/remove-content/${assignmentId}`, {
-                    method: 'DELETE'
-                });
+                if (selectedDeviceIds.length === 1) {
+                    const response = await fetch(`/api/remove-content/${assignmentId}`, {
+                        method: 'DELETE'
+                    });
 
-                if (response.ok) {
-                    loadDeviceContent();
+                    if (response.ok) {
+                        currentDeviceContent = currentDeviceContent.filter(
+                            content => content.assignment_id != assignmentId
+                        );
+                        renderDeviceContent();
+                        loadDevices();
+                    } else {
+                        loadCommonContent();
+                        alert('Failed to remove content');
+                    }
                 } else {
-                    alert('Failed to remove content');
+                    const content = currentDeviceContent.find(c => c.assignment_id == assignmentId);
+                    if (!content) {
+                        alert('Content not found');
+                        return;
+                    }
+
+                    const mediaId = content.media_id;
+                    let successCount = 0;
+                    let totalAttempts = 0;
+                    
+                    const removalPromises = selectedDeviceIds.map(async deviceId => {
+                        try {
+                            totalAttempts++;
+                            const response = await fetch(`/api/device/${deviceId}/content`);
+                            const deviceContent = await response.json();
+                            const assignment = deviceContent.find(c => c.media_id === mediaId);
+                            
+                            if (assignment) {
+                                const deleteResponse = await fetch(`/api/remove-content/${assignment.assignment_id}`, {
+                                    method: 'DELETE'
+                                });
+                                if (deleteResponse.ok) {
+                                    successCount++;
+                                    return true;
+                                }
+                            } else {
+                                successCount++;
+                                return true;
+                            }
+                            return false;
+                        } catch (error) {
+                            console.error(`Error removing from device ${deviceId}:`, error);
+                            return false;
+                        }
+                    });
+                    
+                    await Promise.all(removalPromises);
+                    
+                    currentDeviceContent = currentDeviceContent.filter(
+                        content => content.media_id !== mediaId
+                    );
+                    renderDeviceContent();
+                    loadDevices();
+                    
+                    if (successCount === totalAttempts) {
+                        console.log(`Content removed from ${successCount} devices`);
+                    } else {
+                        alert(`Removed from ${successCount} out of ${totalAttempts} devices`);
+                    }
                 }
             } catch (error) {
+                console.error('Remove error:', error);
+                loadCommonContent();
+                loadDevices();
                 alert('Error: ' + error.message);
             }
         }
@@ -1338,7 +1718,6 @@
 		// Delete media from library
 		async function deleteMediaFromLibrary(mediaId) {
 			try {
-				// Get media info for confirmation
 				const response = await fetch('/api/media');
 				const mediaList = await response.json();
 				const media = mediaList.find(m => m.id == mediaId);
@@ -1348,7 +1727,6 @@
 					return;
 				}
 				
-				// Check if assigned to devices
 				let confirmMessage = `Delete "${media.original_name}" from the library?`;
 				if (media.assignment_count > 0) {
 					confirmMessage += `\n\nWARNING: This media is currently assigned to ${media.assignment_count} device(s). Deleting it will remove it from all devices.`;
@@ -1359,15 +1737,14 @@
 					return;
 				}
 				
-				// Delete the media
 				const deleteResponse = await fetch(`/api/media/${mediaId}`, {
 					method: 'DELETE'
 				});
 				
 				if (deleteResponse.ok) {
-					loadMediaLibrary(); // Refresh the library
-					if (currentDeviceId) {
-						loadDeviceContent(); // Refresh device content if a device is selected
+					loadMediaLibrary();
+					if (selectedDeviceIds.length > 0) {
+						loadCommonContent();
 					}
 					alert('Media deleted successfully');
 				} else {
@@ -1456,24 +1833,6 @@
             const secs = seconds % 60;
             return `${mins}:${secs.toString().padStart(2, '0')}`;
         }
-		
-		function formatDateDisplay(startDate, endDate) {
-			if (!startDate && !endDate) return 'No dates';
-			if (startDate && endDate) {
-				const start = new Date(startDate).toLocaleDateString();
-				const end = new Date(endDate).toLocaleDateString();
-				return `${start} - ${end}`;
-			}
-			if (startDate) {
-				const start = new Date(startDate).toLocaleDateString();
-				return `From ${start}`;
-			}
-			if (endDate) {
-				const end = new Date(endDate).toLocaleDateString();
-				return `Until ${end}`;
-			}
-			return 'No dates';
-		}
 
         // Upload file
         async function uploadFile() {
@@ -1495,13 +1854,11 @@
             const formData = new FormData();
             formData.append('file', file);
             
-            // Handle video duration automatically in the background
             let videoDuration = null;
-            let defaultDisplayDuration = 10; // Default for images
+            let defaultDisplayDuration = 10;
             
             if (currentVideoElement && currentVideoElement.duration) {
                 videoDuration = Math.ceil(currentVideoElement.duration);
-                // For videos, use video duration as minimum display time
                 defaultDisplayDuration = videoDuration;
             }
             
@@ -1513,7 +1870,7 @@
                 end_time: null,
                 start_date: null,
                 end_date: null,
-                device_assignment: null // Library only - no device assignment
+                device_assignment: null
             };
             
             formData.append('scheduling', JSON.stringify(schedulingData));
@@ -1540,7 +1897,8 @@
                 uploadBtn.disabled = false;
             }
         }
-		// Device management functions
+
+        // Device management functions
         function loadDeviceManagement() {
             const container = document.getElementById('deviceManagementList');
             
@@ -1613,7 +1971,7 @@
                 });
                 
                 if (response.ok) {
-                    loadDevices(); // Refresh device list
+                    loadDevices();
                     alert('Device information updated successfully');
                 } else {
                     alert('Failed to update device information');
@@ -1623,8 +1981,7 @@
             }
         }
 
-		async function deleteDevice(deviceId, deviceName) {
-            // Check if device has content assigned
+        async function deleteDevice(deviceId, deviceName) {
             try {
                 const response = await fetch(`/api/device/${deviceId}/content`);
                 const deviceContent = await response.json();
@@ -1641,27 +1998,25 @@
                     return;
                 }
                 
-                // Delete the device
                 const deleteResponse = await fetch(`/api/device/${deviceId}`, {
                     method: 'DELETE'
                 });
                 
                 if (deleteResponse.ok) {
-                    // Refresh devices data first
+                    selectedDeviceIds = selectedDeviceIds.filter(id => id !== deviceId);
                     await loadDevices(); 
-                    
-                    // Then refresh the management modal
                     loadDeviceManagement(); 
                     
-                    // Clear device selector if deleted device was selected
-                    if (currentDeviceId === deviceId) {
-                        document.getElementById('deviceSelector').value = '';
-                        currentDeviceId = null;
-                        document.getElementById('deviceContentArea').innerHTML = `
+                    if (selectedDeviceIds.length > 0) {
+                        loadCommonContent();
+                    } else {
+                        updateSelectedDevicesInfo();
+                        const contentArea = document.getElementById('deviceContentArea');
+                        contentArea.innerHTML = `
                             <div class="drop-zone">
                                 <i class="fas fa-tv fa-3x mb-3"></i>
-                                <h6>Select a device to manage content</h6>
-                                <p class="mb-0">Choose a device from the dropdown above to view and manage its content</p>
+                                <h6>Select devices to manage content</h6>
+                                <p class="mb-0">Check device boxes above to view and manage their content</p>
                             </div>
                         `;
                     }
@@ -1676,14 +2031,19 @@
                 alert('Delete error: ' + error.message);
             }
         }
-		
+
         // Load device management when modal opens
         document.getElementById('manageDevicesModal').addEventListener('shown.bs.modal', function() {
             loadDeviceManagement();
         });
-		
-		// Content editing functions
+
+        // Content editing functions
         function editContent(assignmentId) {
+            if (selectedDeviceIds.length !== 1) {
+                alert('Content editing only works when exactly one device is selected');
+                return;
+            }
+            
             const item = document.querySelector(`[data-assignment-id="${assignmentId}"]`);
             const detailsDisplay = document.getElementById(`details_${assignmentId}`);
             const editForm = document.getElementById(`edit_${assignmentId}`);
@@ -1692,7 +2052,6 @@
             detailsDisplay.style.display = 'none';
             editForm.classList.add('active');
             
-            // Load current values
             loadContentEditData(assignmentId);
         }
 
@@ -1707,85 +2066,75 @@
         }
 
         async function loadContentEditData(assignmentId) {
-			try {
-				// Populate time selectors FIRST
-				populateTimeSelector(`startTime_${assignmentId}`);
-				populateTimeSelector(`endTime_${assignmentId}`);
-				
-				// Find the content item to get existing data
-				const content = currentDeviceContent.find(c => c.assignment_id == assignmentId);
-				
-				if (content) {
-					// Load existing days of week
-					if (content.days_of_week) {
-						try {
-							const days = JSON.parse(content.days_of_week);
-							
-							// If 'all' is in the array or no specific days, check all days
-							if (days.includes('all') || days.length === 0) {
-								['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
-									const checkbox = document.getElementById(`${day}_${assignmentId}`);
-									if (checkbox) checkbox.checked = true;
-								});
-							} else {
-								// First uncheck all days
-								['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
-									const checkbox = document.getElementById(`${day}_${assignmentId}`);
-									if (checkbox) checkbox.checked = false;
-								});
-								// Then check the saved days
-								days.forEach(day => {
-									if (day !== 'all') {  // Skip 'all' as it's not a checkbox
-										const checkbox = document.getElementById(`${day}_${assignmentId}`);
-										if (checkbox) checkbox.checked = true;
-									}
-								});
-							}
-						} catch (e) {
-							console.error('Error parsing days of week:', e);
-							// Default to all days checked on error
-							['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
-								const checkbox = document.getElementById(`${day}_${assignmentId}`);
-								if (checkbox) checkbox.checked = true;
-							});
-						}
-					} else {
-						// If no days_of_week data, default to all days checked
-						['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
-							const checkbox = document.getElementById(`${day}_${assignmentId}`);
-							if (checkbox) checkbox.checked = true;
-						});
-					}
-					
-					// Load existing dates
-					if (content.start_date) {
-						const startDateInput = document.getElementById(`startDate_${assignmentId}`);
-						if (startDateInput) startDateInput.value = content.start_date;
-					}
-					
-					if (content.end_date) {
-						const endDateInput = document.getElementById(`endDate_${assignmentId}`);
-						if (endDateInput) endDateInput.value = content.end_date;
-					}
-					
-					// Load existing times
-					if (content.start_time) {
-						const startTimeSelect = document.getElementById(`startTime_${assignmentId}`);
-						if (startTimeSelect) startTimeSelect.value = content.start_time;
-					}
-					
-					if (content.end_time) {
-						const endTimeSelect = document.getElementById(`endTime_${assignmentId}`);
-						if (endTimeSelect) endTimeSelect.value = content.end_time;
-					}
-				}
-				
-			} catch (error) {
-				console.error('Error loading content data:', error);
-				populateTimeSelector(`startTime_${assignmentId}`);
-				populateTimeSelector(`endTime_${assignmentId}`);
-			}
-		}
+            try {
+                populateTimeSelector(`startTime_${assignmentId}`);
+                populateTimeSelector(`endTime_${assignmentId}`);
+                
+                const content = currentDeviceContent.find(c => c.assignment_id == assignmentId);
+                
+                if (content) {
+                    if (content.days_of_week) {
+                        try {
+                            const days = JSON.parse(content.days_of_week);
+                            
+                            if (days.includes('all') || days.length === 0) {
+                                ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+                                    const checkbox = document.getElementById(`${day}_${assignmentId}`);
+                                    if (checkbox) checkbox.checked = true;
+                                });
+                            } else {
+                                ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+                                    const checkbox = document.getElementById(`${day}_${assignmentId}`);
+                                    if (checkbox) checkbox.checked = false;
+                                });
+                                days.forEach(day => {
+                                    if (day !== 'all') {
+                                        const checkbox = document.getElementById(`${day}_${assignmentId}`);
+                                        if (checkbox) checkbox.checked = true;
+                                    }
+                                });
+                            }
+                        } catch (e) {
+                            console.error('Error parsing days of week:', e);
+                            ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+                                const checkbox = document.getElementById(`${day}_${assignmentId}`);
+                                if (checkbox) checkbox.checked = true;
+                            });
+                        }
+                    } else {
+                        ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+                            const checkbox = document.getElementById(`${day}_${assignmentId}`);
+                            if (checkbox) checkbox.checked = true;
+                        });
+                    }
+                    
+                    if (content.start_date) {
+                        const startDateInput = document.getElementById(`startDate_${assignmentId}`);
+                        if (startDateInput) startDateInput.value = content.start_date;
+                    }
+                    
+                    if (content.end_date) {
+                        const endDateInput = document.getElementById(`endDate_${assignmentId}`);
+                        if (endDateInput) endDateInput.value = content.end_date;
+                    }
+                    
+                    if (content.start_time) {
+                        const startTimeSelect = document.getElementById(`startTime_${assignmentId}`);
+                        if (startTimeSelect) startTimeSelect.value = content.start_time;
+                    }
+                    
+                    if (content.end_time) {
+                        const endTimeSelect = document.getElementById(`endTime_${assignmentId}`);
+                        if (endTimeSelect) endTimeSelect.value = content.end_time;
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error loading content data:', error);
+                populateTimeSelector(`startTime_${assignmentId}`);
+                populateTimeSelector(`endTime_${assignmentId}`);
+            }
+        }
 
         function populateTimeSelector(selectorId) {
             const selector = document.getElementById(selectorId);
@@ -1830,7 +2179,7 @@
 
                 if (response.ok) {
                     cancelContentEdit(assignmentId);
-                    loadDeviceContent(); // Refresh to show updated details
+                    loadCommonContent();
                     alert('Content settings updated successfully');
                 } else {
                     alert('Failed to update content settings');
@@ -1839,57 +2188,143 @@
                 alert('Error: ' + error.message);
             }
         }
-		
-		function calculateEndDate(assignmentId) {
-			const startDate = document.getElementById(`startDate_${assignmentId}`).value;
-			const durationSelect = document.getElementById(`durationDropdown_${assignmentId}`).value;
-			const endDateInput = document.getElementById(`endDate_${assignmentId}`);
-			
-			if (durationSelect === 'custom') {
-				endDateInput.readOnly = false;
-				endDateInput.style.backgroundColor = '';
-				return;
-			}
-			
-			endDateInput.readOnly = true;
-			endDateInput.style.backgroundColor = '#f8f9fa';
-			
-			if (startDate && durationSelect && durationSelect !== 'custom') {
-				const start = new Date(startDate);
-				const end = new Date(start.getFullYear(), start.getMonth() + parseInt(durationSelect), start.getDate());
-				endDateInput.value = end.toISOString().split('T')[0];
-			} else {
-				endDateInput.value = '';
-			}
-		}
-		
-		// Add this function before your other functions
-		function refreshAll() {
-			loadDevices();
-			loadMediaLibrary();
-			if (currentDeviceId) {
-				loadDeviceContent();
-			}
-		}
-		
-		function formatDaysDisplay(daysJson) {
-			if (!daysJson) return 'All days';
-			try {
-				const days = JSON.parse(daysJson);
-				if (days.includes('all') || days.length === 0 || days.length === 7) return 'All days';
-				return days.map(d => d.toUpperCase()).join(', ');
-			} catch (e) {
-				return 'All days';
-			}
-		}
 
-		function formatTimeDisplay(startTime, endTime) {
-			if (!startTime && !endTime) return 'All day';
-			if (startTime && endTime) return `${startTime} - ${endTime}`;
-			if (startTime) return `From ${startTime}`;
-			if (endTime) return `Until ${endTime}`;
-			return 'All day';
-		}
+        function calculateEndDate(assignmentId) {
+            const startDate = document.getElementById(`startDate_${assignmentId}`).value;
+            const durationSelect = document.getElementById(`durationDropdown_${assignmentId}`).value;
+            const endDateInput = document.getElementById(`endDate_${assignmentId}`);
+            
+            if (durationSelect === 'custom') {
+                endDateInput.readOnly = false;
+                endDateInput.style.backgroundColor = '';
+                return;
+            }
+            
+            endDateInput.readOnly = true;
+            endDateInput.style.backgroundColor = '#f8f9fa';
+            
+            if (startDate && durationSelect && durationSelect !== 'custom') {
+                const start = new Date(startDate);
+                const end = new Date(start.getFullYear(), start.getMonth() + parseInt(durationSelect), start.getDate());
+                endDateInput.value = end.toISOString().split('T')[0];
+            } else {
+                endDateInput.value = '';
+            }
+        }
+
+        function refreshAll() {
+            loadDevices().then(() => {
+                renderDeviceCheckboxes();
+                const currentSelections = [...selectedDeviceIds];
+                selectedDeviceIds = [];
+                
+                currentSelections.forEach(deviceId => {
+                    const checkbox = document.getElementById(`device_${deviceId}`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                        const container = checkbox.closest('.device-checkbox-item');
+                        container.classList.add('checked');
+                        selectedDeviceIds.push(deviceId);
+                    }
+                });
+                
+                const allCheckbox = document.getElementById('device_all');
+                if (allCheckbox && selectedDeviceIds.length === currentDevices.length) {
+                    allCheckbox.checked = true;
+                    allCheckbox.closest('.device-checkbox-item').classList.add('checked');
+                }
+                
+                updateSelectedDevicesInfo();
+            });
+            
+            loadMediaLibrary();
+            
+            if (selectedDeviceIds.length > 0) {
+                loadCommonContent();
+            }
+        }
+
+        async function toggleContentPause(assignmentId, isPaused) {
+            try {
+                const response = await fetch(`/api/device-content/${assignmentId}/pause`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_paused: isPaused })
+                });
+
+                if (response.ok) {
+                    const content = currentDeviceContent.find(c => c.assignment_id === assignmentId);
+                    if (content) {
+                        content.is_paused = isPaused;
+                    }
+                    
+                    const thumbnailStatus = document.querySelector(`[data-assignment-id="${assignmentId}"] .thumbnail-status`);
+                    if (thumbnailStatus) {
+                        thumbnailStatus.className = `thumbnail-status ${isPaused ? 'status-paused' : 'status-playing'}`;
+                        thumbnailStatus.innerHTML = `<i class="fas ${isPaused ? 'fa-pause' : 'fa-play'}"></i>`;
+                    }
+                    
+                    const toggle = document.querySelector(`[data-assignment-id="${assignmentId}"] .pause-toggle`);
+                    if (toggle) {
+                        toggle.title = `${isPaused ? 'Resume' : 'Pause'} content`;
+                    }
+                } else {
+                    alert('Failed to update content status');
+                    const checkbox = document.querySelector(`[data-assignment-id="${assignmentId}"] .pause-toggle input`);
+                    if (checkbox) checkbox.checked = !isPaused;
+                }
+            } catch (error) {
+                console.error('Toggle pause error:', error);
+                alert('Error: ' + error.message);
+                const checkbox = document.querySelector(`[data-assignment-id="${assignmentId}"] .pause-toggle input`);
+                if (checkbox) checkbox.checked = !isPaused;
+            }
+        }
+
+        // Format display functions
+        function formatDaysDisplay(daysJson) {
+            if (!daysJson) return 'All days';
+            try {
+                const days = JSON.parse(daysJson);
+                if (days.includes('all') || days.length === 0 || days.length === 7) return 'All days';
+                return days.map(d => d.toUpperCase()).join(', ');
+            } catch (e) {
+                return 'All days';
+            }
+        }
+
+        function formatTimeDisplay(startTime, endTime) {
+            if (!startTime && !endTime) return 'All day';
+            if (startTime && endTime) return `${startTime} - ${endTime}`;
+            if (startTime) return `From ${startTime}`;
+            if (endTime) return `Until ${endTime}`;
+            return 'All day';
+        }
+
+        function formatDateDisplay(startDate, endDate) {
+            if (!startDate && !endDate) return 'No dates';
+            if (startDate && endDate) {
+                const start = new Date(startDate).toLocaleDateString();
+                const end = new Date(endDate).toLocaleDateString();
+                return `${start} - ${end}`;
+            }
+            if (startDate) {
+                const start = new Date(startDate).toLocaleDateString();
+                return `From ${start}`;
+            }
+            if (endDate) {
+                const end = new Date(endDate).toLocaleDateString();
+                return `Until ${end}`;
+            }
+            return 'No dates';
+        }
+
+        // Initialize page with real database loading
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDevices();
+            loadMediaLibrary();
+            setupUploadModal();
+        });
     </script>
 </body>
 </html>
