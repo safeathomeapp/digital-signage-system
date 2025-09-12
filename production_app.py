@@ -46,6 +46,28 @@ SERVER_IP = get_server_ip()
 LAST_CONTENT_UPDATE = time.time()
 
 # Database setup
+def upgrade_database():
+    """Add missing transition columns to device_content table"""
+    conn = sqlite3.connect('signage.db')
+    
+    try:
+        # Add transition_type column
+        conn.execute('ALTER TABLE device_content ADD COLUMN transition_type TEXT DEFAULT "fade"')
+        logger.info("Added transition_type column")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    try:
+        # Add transition_duration column  
+        conn.execute('ALTER TABLE device_content ADD COLUMN transition_duration REAL DEFAULT 1.0')
+        logger.info("Added transition_duration column")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    conn.commit()
+    conn.close()
+    logger.info("Database upgrade completed")
+    
 def init_db():
     conn = sqlite3.connect('signage.db')
     
@@ -150,8 +172,9 @@ def index():
 
 @app.route('/devices')
 def device_management():
-    return render_template('devices.html', server_ip=SERVER_IP)
-
+    ##return render_template('devices.html', server_ip=SERVER_IP)
+    return redirect('/')
+    
 @app.route('/device/<device_id>')
 def device_detail(device_id):
     return render_template('device_detail.html', server_ip=SERVER_IP, device_id=device_id)
@@ -657,7 +680,8 @@ def get_device_content(device_id):
         cursor = conn.execute('''
             SELECT dc.id as assignment_id, dc.media_id, dc.display_duration, dc.play_order,
                    dc.days_of_week, dc.start_date, dc.end_date, dc.start_time, dc.end_time,
-                   dc.is_active, m.filename, m.original_name, m.file_type, m.video_duration
+                   dc.is_active, dc.transition_type, dc.transition_duration,
+                   m.filename, m.original_name, m.file_type, m.video_duration
             FROM device_content dc
             JOIN media m ON dc.media_id = m.id
             WHERE dc.device_id = ?
@@ -676,11 +700,13 @@ def get_device_content(device_id):
                 'end_date': row[6],
                 'start_time': row[7],
                 'end_time': row[8],
-                'is_paused': not bool(row[9]),  # ADD THIS LINE
-                'filename': row[10],            # UPDATED INDEX
-                'original_name': row[11],       # UPDATED INDEX
-                'file_type': row[12],           # UPDATED INDEX
-                'video_duration': row[13]       # UPDATED INDEX
+                'is_paused': not bool(row[9]),
+                'transition_type': row[10] or 'fade',
+                'transition_duration': row[11] or 1.0,
+                'filename': row[12],
+                'original_name': row[13],
+                'file_type': row[14],
+                'video_duration': row[15]
             })
         
         conn.close()
@@ -838,7 +864,7 @@ def update_device(device_id):
 @app.route('/api/playlist/<device_id>')
 def get_playlist(device_id):
     try:
-        # Register device checkin - PRESERVE EXISTING CUSTOM NAMES
+        # Register device checkin
         conn = sqlite3.connect('signage.db')
         
         # Check if device already exists
@@ -846,14 +872,12 @@ def get_playlist(device_id):
         existing_device = cursor.fetchone()
         
         if existing_device:
-            # Device exists - only update checkin time, status, and IP
             conn.execute('''
                 UPDATE devices 
                 SET last_checkin = ?, is_active = 1, ip_address = ?
                 WHERE device_id = ?
             ''', (datetime.now(), request.remote_addr, device_id))
         else:
-            # New device - create with default name
             conn.execute('''
                 INSERT INTO devices (device_id, device_name, last_checkin, is_active, ip_address)
                 VALUES (?, ?, ?, ?, ?)
@@ -867,10 +891,11 @@ def get_playlist(device_id):
         current_time = now.time()
         current_day = today.strftime('%a').lower()
         
-        # Query device-specific content
+        # Query device-specific content WITH TRANSITION DATA
         cursor = conn.execute('''
             SELECT dc.media_id, m.filename, m.file_type, dc.display_duration,
-                   dc.days_of_week, dc.start_date, dc.end_date, dc.start_time, dc.end_time, dc.play_order
+                   dc.days_of_week, dc.start_date, dc.end_date, dc.start_time, dc.end_time, 
+                   dc.play_order, dc.transition_type, dc.transition_duration
             FROM device_content dc
             JOIN media m ON dc.media_id = m.id
             WHERE dc.device_id = ? AND dc.is_active = 1
@@ -881,9 +906,9 @@ def get_playlist(device_id):
         
         playlist = []
         for row in cursor.fetchall():
-            media_id, filename, file_type, duration, days_json, start_date, end_date, start_time_str, end_time_str, play_order = row
+            media_id, filename, file_type, duration, days_json, start_date, end_date, start_time_str, end_time_str, play_order, transition_type, transition_duration = row
             
-            # Check day of week
+            # Check day of week and time (existing logic)
             days_of_week = json.loads(days_json) if days_json else ['all']
             day_matches = (
                 'all' in days_of_week or
@@ -892,7 +917,6 @@ def get_playlist(device_id):
                 (current_day in ['sat', 'sun'] and 'weekends' in days_of_week)
             )
             
-            # Check time of day if specified
             time_matches = True
             if start_time_str and end_time_str:
                 from datetime import time
@@ -907,6 +931,8 @@ def get_playlist(device_id):
                     'file_type': file_type,
                     'display_duration': duration,
                     'play_order': play_order,
+                    'transition_type': transition_type or 'fade',
+                    'transition_duration': transition_duration or 1.0,
                     'url': f'http://{SERVER_IP}:5000/uploads/{filename}'
                 })
         
@@ -1026,11 +1052,11 @@ def update_device_content_schedule(assignment_id):
             days_list = ['all']
         days_json = json.dumps(days_list)
         
-        # Update device content record
+        # Update device content record INCLUDING TRANSITION FIELDS
         conn.execute('''
             UPDATE device_content 
             SET days_of_week = ?, display_duration = ?, start_time = ?, end_time = ?, 
-                start_date = ?, end_date = ?
+                start_date = ?, end_date = ?, transition_type = ?, transition_duration = ?
             WHERE id = ?
         ''', (
             days_json,
@@ -1039,13 +1065,15 @@ def update_device_content_schedule(assignment_id):
             data.get('end_time'),
             data.get('start_date'),
             data.get('end_date'),
+            data.get('transition_type', 'fade'),
+            data.get('transition_duration', 1.0),
             assignment_id
         ))
         
         conn.commit()
         conn.close()
         
-        logger.info(f"Device content {assignment_id} schedule updated")
+        logger.info(f"Device content {assignment_id} schedule updated with transitions")
         return jsonify({'success': 'Schedule updated successfully'})
     
     except Exception as e:
@@ -1122,9 +1150,64 @@ def cleanup_database():
     except Exception as e:
         logger.error(f"Database cleanup error: {e}")
         return jsonify({'error': 'Failed to cleanup database'}), 500
+ 
+# Add these routes to your production_app.py
+
+@app.route('/api/device-content/<int:assignment_id>/transition', methods=['PUT'])
+def update_content_transition(assignment_id):
+    """Update transition settings for content assignment"""
+    try:
+        data = request.json
         
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE device_content 
+            SET transition_type = ?, transition_duration = ?
+            WHERE id = ?
+        ''', (
+            data.get('transition_type', 'fade'),
+            data.get('transition_duration', 1.0),
+            assignment_id
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'message': 'Transition settings updated successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/device/<device_id>/transitions', methods=['PUT'])
+def update_device_transitions(device_id):
+    """Update transition settings for all content on a device"""
+    try:
+        data = request.json
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE device_content 
+            SET transition_type = ?, transition_duration = ?
+            WHERE device_id = ?
+        ''', (
+            data.get('transition_type', 'fade'),
+            data.get('transition_duration', 1.0),
+            device_id
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'message': 'Device transition settings updated successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+       
 if __name__ == '__main__':
     init_db()
+    upgrade_database()
     print(f"🚀 Digital Signage Server starting on: {SERVER_IP}:5000")
     print(f"📱 Android TVs connect to: http://{SERVER_IP}:5000")
     print(f"🌐 Upload from any PC: http://{SERVER_IP}:5000")

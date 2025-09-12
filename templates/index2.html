@@ -1,0 +1,2473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Management - Digital Signage Manager</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .library-panel, .device-panel {
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            min-height: 700px;
+        }
+		
+		/* Device selection checkboxes */
+		.device-checkboxes {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 1rem;
+			padding: 1rem;
+			background-color: #f8f9fa;
+			border-radius: 0.5rem;
+			border: 1px solid #dee2e6;
+		}
+
+		.device-checkbox-item {
+			display: flex;
+			align-items: center;
+			padding: 0.5rem 1rem;
+			background-color: white;
+			border: 2px solid #dee2e6;
+			border-radius: 0.5rem;
+			transition: all 0.2s;
+			cursor: pointer;
+			min-width: 120px;
+		}
+
+		.device-checkbox-item:hover {
+			border-color: #0d6efd;
+			background-color: #f0f8ff;
+		}
+
+		.device-checkbox-item.checked {
+			border-color: #0d6efd;
+			background-color: #e7f1ff;
+		}
+
+		.device-checkbox-item.all-devices {
+			background-color: #e8f5e8;
+			border-color: #28a745;
+			font-weight: 600;
+		}
+
+		.device-checkbox-item.all-devices.checked {
+			background-color: #d4edda;
+			border-color: #155724;
+		}
+
+		.device-checkbox-item input[type="checkbox"] {
+			margin-right: 0.5rem;
+			transform: scale(1.2);
+		}
+
+		.device-checkbox-item .device-name {
+			flex: 1;
+			font-size: 0.9rem;
+		}
+
+		.device-checkbox-item .content-count {
+			font-size: 0.75rem;
+			color: #6c757d;
+			margin-left: 0.5rem;
+			background-color: #f8f9fa;
+			padding: 0.125rem 0.5rem;
+			border-radius: 1rem;
+		}
+
+		.device-checkbox-item.checked .content-count {
+			background-color: #0d6efd;
+			color: white;
+		}
+
+		/* Selected devices info */
+		.selected-devices-info {
+			margin-top: 1rem;
+			padding: 0.75rem;
+			background-color: #e7f1ff;
+			border-radius: 0.5rem;
+			border: 1px solid #b6d7ff;
+			font-size: 0.9rem;
+		}
+
+		.selected-devices-info.hidden {
+			display: none;
+		}
+		
+		/* Pause toggle switch - LARGER SIZE */
+		.pause-toggle {
+			position: relative;
+			display: inline-block;
+			width: 44px;
+			height: 26px;
+			margin-right: 0.5rem;
+		}
+
+		.pause-toggle input {
+			opacity: 0;
+			width: 0;
+			height: 0;
+		}
+
+		.toggle-slider {
+			position: absolute;
+			cursor: pointer;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background-color: #28a745;
+			transition: 0.3s;
+			border-radius: 26px;
+		}
+
+		.toggle-slider:before {
+			position: absolute;
+			content: "";
+			height: 20px;
+			width: 20px;
+			left: 3px;
+			bottom: 3px;
+			background-color: white;
+			transition: 0.3s;
+			border-radius: 50%;
+		}
+
+		input:checked + .toggle-slider {
+			background-color: #ffc107;
+		}
+
+		input:checked + .toggle-slider:before {
+			transform: translateX(18px);
+		}
+
+		/* Status indicator overlay on thumbnail */
+		.device-content-thumbnail-container {
+			position: relative;
+			display: inline-block;
+		}
+
+		.thumbnail-status {
+			position: absolute;
+			top: 2px;
+			right: 2px;
+			width: 22px;
+			height: 22px;
+			border-radius: 50%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 11px;
+			color: white;
+			z-index: 2;
+		}
+
+		.status-playing {
+			background-color: #28a745;
+		}
+
+		.status-paused {
+			background-color: #ffc107;
+			color: #212529;
+		}
+		
+		/* Color-coded detail badges - REORDERED: file-type, duration, days, times, dates */
+		.detail-display.file-type {
+			color: #6f42c1;
+			background-color: #f3e8ff;
+			padding: 0.125rem 0.5rem;
+			border-radius: 0.25rem;
+			border: 1px solid #d1b3ff;
+		}
+
+		.detail-display.duration {
+			color: #0d6efd;
+			background-color: #e7f1ff;
+			padding: 0.125rem 0.5rem;
+			border-radius: 0.25rem;
+			border: 1px solid #b6d7ff;
+		}
+
+		.detail-display.days {
+			color: #198754;
+			background-color: #d1e7dd;
+			padding: 0.125rem 0.5rem;
+			border-radius: 0.25rem;
+			border: 1px solid #a3cfbb;
+		}
+
+		.detail-display.times {
+			color: #fd7e14;
+			background-color: #ffe8d1;
+			padding: 0.125rem 0.5rem;
+			border-radius: 0.25rem;
+			border: 1px solid #ffb366;
+		}
+
+		.detail-display.dates {
+			color: #dc3545;
+			background-color: #f8d7da;
+			padding: 0.125rem 0.5rem;
+			border-radius: 0.25rem;
+			border: 1px solid #f1aeb5;
+		}
+		
+		/* ADD THIS NEW TRANSITION STYLE */
+		.detail-display.transition {
+			color: #6f42c1;
+			background-color: #f3e8ff;
+			padding: 0.125rem 0.5rem;
+			border-radius: 0.25rem;
+			border: 1px solid #d1b3ff;
+		}
+		
+		/* MULTI-DEVICE DISABLED STATES */
+		.detail-display.disabled {
+			color: #6c757d !important;
+			background-color: #f8f9fa !important;
+			border-color: #dee2e6 !important;
+			opacity: 0.6;
+		}
+
+		.detail-display i {
+			width: 12px;
+			text-align: center;
+			margin-right: 0.25rem;
+		}
+
+		.action-button, .delete-bin {
+			border: 2px solid;
+			border-radius: 0.375rem;
+			padding: 0.5rem 0.75rem;
+			text-align: center;
+			transition: all 0.2s;
+			min-width: 80px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 0.875rem;
+			font-weight: 500;
+			text-decoration: none;
+			cursor: pointer;
+		}
+
+		.action-button.upload-btn {
+			border-color: #0d6efd;
+			background-color: #0d6efd;
+			color: white;
+		}
+
+		.action-button.upload-btn:hover {
+			background-color: #0b5ed7;
+			border-color: #0b5ed7;
+			transform: scale(1.05);
+		}
+
+		.action-button.refresh-btn {
+			border-color: #198754;
+			background-color: #198754;
+			color: white;
+		}
+
+		.action-button.refresh-btn:hover {
+			background-color: #157347;
+			border-color: #157347;
+			transform: scale(1.05);
+		}
+
+		.delete-bin {
+			border-color: #dc3545;
+			color: #dc3545;
+			background-color: #fff5f5;
+			cursor: default;
+		}
+
+		.delete-bin.drag-over {
+			background-color: #f8d7da;
+			border-color: #721c24;
+			color: #721c24;
+			transform: scale(1.05);
+		}
+
+		.action-button i, .delete-bin i {
+			margin-right: 0.25rem;
+		}
+		
+        .media-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+            padding: 1rem 0;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .media-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            border: 2px solid transparent;
+            cursor: grab;
+            transition: all 0.2s;
+        }
+
+        .media-item:hover {
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+            border-color: #0d6efd;
+        }
+
+        .media-item.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+
+        .media-thumbnail {
+            width: 100px;
+			height: 100px;
+            object-fit: cover;
+            border-radius: 0.5rem;
+            border: 2px solid #dee2e6;
+        }
+
+        .thumbnail-placeholder {
+            width: 100px;
+			height: 100px;
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5em;
+            border: 2px solid #dee2e6;
+        }
+
+		.video-thumbnail {
+			width: 100px;
+			height: 100px;
+			object-fit: cover;
+			border-radius: 0.5rem;
+			border: 2px solid #dee2e6;
+			position: relative;
+		}
+
+		.video-thumbnail::after {
+			content: '\f04b';
+			font-family: 'Font Awesome 6 Free';
+			font-weight: 900;
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			color: white;
+			background: rgba(0, 0, 0, 0.7);
+			border-radius: 50%;
+			width: 24px;
+			height: 24px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 10px;
+		}
+
+		.thumbnail-generating {
+			opacity: 0.7;
+			border-color: #0d6efd;
+		}
+
+        .media-meta {
+            font-size: 0.65rem;
+            color: #6c757d;
+        }
+
+        .device-content {
+            max-height: 550px;
+            overflow-y: auto;
+        }
+
+        .device-content-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .device-content-item:hover {
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+
+        .device-content-item.drag-over {
+            border-color: #28a745;
+            background-color: #f8fff9;
+        }
+
+        .device-content-item.being-dragged {
+            opacity: 0.5;
+        }
+
+		/* MULTI-DEVICE DISABLED STATES */
+		.device-content-item.multi-device-disabled {
+			opacity: 0.7;
+			background-color: #f8f9fa;
+			/* Remove cursor: not-allowed - keep default cursor for drag-to-delete */
+		}
+
+		.device-content-item.multi-device-disabled .drag-handle {
+			opacity: 0.3;
+			cursor: not-allowed;
+			pointer-events: none;
+		}
+
+		.device-content-item.multi-device-disabled .drag-handle:hover {
+			cursor: not-allowed;
+		}
+
+		/* Remove the draggable cursor override */
+		/* .device-content-item.multi-device-disabled[draggable="true"] - deleted */
+
+        .device-content-thumbnail {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 0.375rem;
+            margin-right: 1rem;
+            flex-shrink: 0;
+        }
+
+        .device-thumbnail-placeholder {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+            border-radius: 0.375rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2em;
+            margin-right: 1rem;
+            flex-shrink: 0;
+        }
+
+        .device-content-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .device-content-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .device-content-details {
+            font-size: 0.75rem;
+            color: #6c757d;
+        }
+
+        .detail-badge {
+            display: inline-block;
+            margin: 0.125rem 0.25rem 0.125rem 0;
+            padding: 0.125rem 0.5rem;
+            background-color: #f8f9fa;
+            border-radius: 0.25rem;
+            font-size: 0.65rem;
+        }
+
+        .device-content-actions {
+            display: flex;
+            gap: 0.25rem;
+            flex-shrink: 0;
+        }
+
+        .drag-handle {
+            cursor: grab;
+            color: #6c757d;
+            margin-right: 0.5rem;
+            padding: 0.25rem;
+        }
+
+        .drag-handle:hover {
+            color: #495057;
+            background-color: #f8f9fa;
+            border-radius: 0.25rem;
+        }
+
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+
+        .drop-zone {
+            border: 2px dashed #dee2e6;
+            border-radius: 0.5rem;
+            padding: 2rem;
+            text-align: center;
+            color: #6c757d;
+            margin: 1rem 0;
+            transition: all 0.2s;
+        }
+
+        .drop-zone.drag-over {
+            border-color: #28a745;
+            background-color: #f8fff9;
+            color: #28a745;
+        }
+
+        .play-order {
+            background-color: #0d6efd;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: bold;
+            margin-right: 0.5rem;
+            flex-shrink: 0;
+        }
+
+		.device-content-item.editing {
+			background-color: #f8f9fa;
+			border-color: #0d6efd;
+		}
+
+		.content-details-row {
+			display: flex;
+			gap: 0.5rem;
+			margin-top: 0.5rem;
+			flex-wrap: wrap;
+			align-items: center;
+		}
+
+		.detail-display {
+			display: inline-flex;
+			align-items: center;
+			gap: 0.25rem;
+			font-size: 0.75rem;
+			color: #6c757d;
+		}
+
+		.detail-display i {
+			width: 12px;
+			text-align: center;
+		}
+
+		.edit-form {
+			display: none;
+			margin-top: 1rem;
+			padding: 1rem;
+			background-color: #f8f9fa;
+			border-radius: 0.375rem;
+			border: 1px solid #dee2e6;
+		}
+
+		.edit-form.active {
+			display: block;
+		}
+
+		.form-row {
+			display: flex;
+			gap: 1rem;
+			margin-bottom: 0.75rem;
+			flex-wrap: wrap;
+		}
+
+		.form-col {
+			flex: 1;
+			min-width: 120px;
+		}
+
+		.form-col-auto {
+			flex: 0 0 auto;
+		}
+
+		.days-checkboxes {
+			display: flex;
+			gap: 0.5rem;
+			flex-wrap: wrap;
+		}
+
+		.days-checkboxes .form-check {
+			margin: 0;
+		}
+
+		.duration-disabled {
+			background-color: #e9ecef !important;
+			opacity: 0.6;
+		}
+
+		/* BUTTON DISABLED STATES */
+		.btn.disabled-multi-device {
+			opacity: 0.4;
+			cursor: not-allowed;
+			pointer-events: none;
+			background-color: #6c757d !important;
+			border-color: #6c757d !important;
+		}
+
+		.btn.disabled-multi-device:hover {
+			cursor: not-allowed;
+		}
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="fas fa-tv me-2"></i>Device Management
+            </span>
+            <div class="navbar-nav ms-auto">
+                <!--<a class="nav-link text-white" href="/">Upload Content</a>
+                <a class="nav-link text-white" href="/devices">Manage Devices</a>-->
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Left Panel - Media Library -->
+            <div class="col-md-5">
+                <div class="library-panel p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">
+                            <i class="fas fa-photo-video me-2"></i>Media Library
+                        </h5>
+                        <div class="d-flex gap-2 align-items-center">
+                            <button class="action-button upload-btn" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                                <i class="fas fa-plus"></i>
+                                <span>Upload</span>
+                            </button>
+                            <button class="action-button refresh-btn" onclick="loadMediaLibrary()">
+                                <i class="fas fa-sync"></i>
+                                <span>Refresh</span>
+                            </button>
+                            <div id="deleteBin" class="delete-bin">
+                                <i class="fas fa-trash-alt"></i>
+                                <span>Bin</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="mediaLibrary">
+                        <div class="text-center">
+                            <div class="spinner-border" role="status"></div>
+                            <p class="mt-2">Loading media...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Device Content -->
+            <div class="col-md-7">
+                <div class="device-panel p-4">
+                    <!-- Device Selection Checkboxes -->
+                    <div class="bg-white p-3 rounded mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="mb-0">
+                                <i class="fas fa-desktop me-2"></i>Device Content
+                            </h5>
+                            <div class="d-flex gap-2 align-items-center">
+                                <button class="action-button upload-btn" data-bs-toggle="modal" data-bs-target="#manageDevicesModal">
+                                    <i class="fas fa-cog"></i>
+                                    <span>Manage</span>
+                                </button>
+								<button class="action-button refresh-btn" onclick="refreshAll()">
+                                    <i class="fas fa-sync"></i>
+                                    <span>Refresh</span>
+                                </button>
+                                <div id="deviceDeleteBin" class="delete-bin">
+                                    <i class="fas fa-trash-alt"></i>
+                                    <span>Bin</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Device Checkboxes -->
+                        <div id="deviceCheckboxes" class="device-checkboxes">
+                            <div class="text-center w-100">
+                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                <span class="ms-2">Loading devices...</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Selected Devices Info -->
+                        <div id="selectedDevicesInfo" class="selected-devices-info hidden">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <span id="selectedDevicesText">No devices selected</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Device Content Area -->
+                    <div id="deviceContentArea">
+                        <div class="drop-zone">
+                            <i class="fas fa-tv fa-3x mb-3"></i>
+                            <h6>Select devices to manage content</h6>
+                            <p class="mb-0">Check device boxes above to view and manage their content</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div class="modal fade" id="uploadModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-upload me-2"></i>Upload Media Content
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="uploadForm" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="file" class="form-label">Select Media File</label>
+                            <input type="file" class="form-control" id="file" name="file" 
+                                   accept=".png,.jpg,.jpeg,.gif,.mp4,.mov,.avi,.webm,.mkv" required>
+                            <div class="form-text">Supported: Images (PNG, JPG, GIF) and Videos (MP4, MOV, AVI)</div>
+                            
+                            <div id="fileInfo" class="mt-3" style="display: none;">
+                                <div class="alert alert-info">
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <strong>File:</strong> <span id="fileName"></span><br>
+                                            <strong>Size:</strong> <span id="fileSize"></span><br>
+                                            <strong>Type:</strong> <span id="fileType"></span>
+                                        </div>
+                                        <div class="col-6" id="videoInfo" style="display: none;">
+                                            <strong>Duration:</strong> <span id="videoDuration"></span><br>
+                                            <strong>Resolution:</strong> <span id="videoResolution"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-secondary">
+                            <small>
+                                <i class="fas fa-info-circle me-1"></i>
+                                <strong>Default Settings:</strong> Content will be available on all days with 10-second display duration.
+                            </small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="uploadBtn" onclick="uploadFile()">
+                        <i class="fas fa-upload me-1"></i>Upload to Library
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+	<!-- Device Management Modal -->
+    <div class="modal fade" id="manageDevicesModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-cog me-2"></i>Manage Devices
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="deviceManagementList">
+                        <div class="text-center">
+                            <div class="spinner-border" role="status"></div>
+                            <p class="mt-2">Loading devices...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentDevices = [];
+        let selectedDeviceIds = [];
+        let currentDeviceContent = [];
+        let libraryDraggedElement = null;
+        let deviceDraggedElement = null;
+        let currentVideoElement = null;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDevices();
+            loadMediaLibrary();
+            setupUploadModal();
+        });
+
+        // Load devices and create checkboxes
+        async function loadDevices() {
+            try {
+                const response = await fetch('/api/devices');
+                currentDevices = await response.json();
+                
+                renderDeviceCheckboxes();
+                
+            } catch (error) {
+                console.error('Error loading devices:', error);
+                document.getElementById('deviceCheckboxes').innerHTML = '<div class="text-danger">Error loading devices</div>';
+            }
+        }
+
+        // Render device checkboxes
+        function renderDeviceCheckboxes() {
+            const container = document.getElementById('deviceCheckboxes');
+            
+            if (currentDevices.length === 0) {
+                container.innerHTML = '<div class="text-muted">No devices found</div>';
+                return;
+            }
+            
+            let html = '';
+            
+            // Add "ALL" checkbox first
+			html += `
+				<div class="device-checkbox-item all-devices" onclick="toggleAllDevices()">
+					<input type="checkbox" id="device_all" 
+						   onchange="handleAllDevicesChange(event)"
+						   onclick="event.stopPropagation()">
+					<span class="device-name">ALL DEVICES</span>
+				</div>
+			`;
+            
+            // Add individual device checkboxes
+			currentDevices.forEach(device => {
+				const displayName = device.display_name || device.device_name;
+				html += `
+					<div class="device-checkbox-item" onclick="toggleDevice('${device.device_id}')">
+						<input type="checkbox" id="device_${device.device_id}" 
+							   onchange="handleDeviceChange(event, '${device.device_id}')"
+							   onclick="event.stopPropagation()">
+						<span class="device-name">${displayName}</span>
+						<span class="content-count">${device.content_count}</span>
+					</div>
+				`;
+			});
+            
+            container.innerHTML = html;
+        }
+
+        // Handle "ALL" checkbox toggle
+        function toggleAllDevices() {
+            const allCheckbox = document.getElementById('device_all');
+            allCheckbox.checked = !allCheckbox.checked;
+            handleAllDevicesChange({ stopPropagation: () => {} });
+        }
+
+        function handleAllDevicesChange(event) {
+            event.stopPropagation();
+            const allCheckbox = document.getElementById('device_all');
+            const isChecked = allCheckbox.checked;
+            
+            // Update all individual device checkboxes
+            currentDevices.forEach(device => {
+                const deviceCheckbox = document.getElementById(`device_${device.device_id}`);
+                if (deviceCheckbox) {
+                    deviceCheckbox.checked = isChecked;
+                    const container = deviceCheckbox.closest('.device-checkbox-item');
+                    if (isChecked) {
+                        container.classList.add('checked');
+                    } else {
+                        container.classList.remove('checked');
+                    }
+                }
+            });
+            
+            // Update selected devices array
+            if (isChecked) {
+                selectedDeviceIds = currentDevices.map(d => d.device_id);
+            } else {
+                selectedDeviceIds = [];
+            }
+            
+            // Update ALL checkbox visual state
+            const allContainer = allCheckbox.closest('.device-checkbox-item');
+            if (isChecked) {
+                allContainer.classList.add('checked');
+            } else {
+                allContainer.classList.remove('checked');
+            }
+            
+            updateSelectedDevicesInfo();
+            loadCommonContent();
+        }
+
+        // Handle individual device checkbox toggle
+        function toggleDevice(deviceId) {
+            const deviceCheckbox = document.getElementById(`device_${deviceId}`);
+            deviceCheckbox.checked = !deviceCheckbox.checked;
+            handleDeviceChange({ stopPropagation: () => {} }, deviceId);
+        }
+
+        function handleDeviceChange(event, deviceId) {
+            event.stopPropagation();
+            const deviceCheckbox = document.getElementById(`device_${deviceId}`);
+            const isChecked = deviceCheckbox.checked;
+            const container = deviceCheckbox.closest('.device-checkbox-item');
+            
+            // Update visual state
+            if (isChecked) {
+                container.classList.add('checked');
+                if (!selectedDeviceIds.includes(deviceId)) {
+                    selectedDeviceIds.push(deviceId);
+                }
+            } else {
+                container.classList.remove('checked');
+                selectedDeviceIds = selectedDeviceIds.filter(id => id !== deviceId);
+            }
+            
+            // Update ALL checkbox state
+            const allCheckbox = document.getElementById('device_all');
+            const allContainer = allCheckbox.closest('.device-checkbox-item');
+            
+            if (selectedDeviceIds.length === currentDevices.length) {
+                allCheckbox.checked = true;
+                allContainer.classList.add('checked');
+            } else {
+                allCheckbox.checked = false;
+                allContainer.classList.remove('checked');
+            }
+            
+            updateSelectedDevicesInfo();
+            loadCommonContent();
+        }
+
+        // Update selected devices info display
+        function updateSelectedDevicesInfo() {
+            const infoDiv = document.getElementById('selectedDevicesInfo');
+            const textSpan = document.getElementById('selectedDevicesText');
+            
+            if (selectedDeviceIds.length === 0) {
+                infoDiv.classList.add('hidden');
+                textSpan.textContent = 'No devices selected';
+            } else if (selectedDeviceIds.length === currentDevices.length) {
+                infoDiv.classList.remove('hidden');
+                textSpan.textContent = `All devices selected (${selectedDeviceIds.length})`;
+            } else {
+                infoDiv.classList.remove('hidden');
+                const deviceNames = selectedDeviceIds.map(id => {
+                    const device = currentDevices.find(d => d.device_id === id);
+                    return device ? (device.display_name || device.device_name) : id;
+                });
+                textSpan.textContent = `Selected devices: ${deviceNames.join(', ')}`;
+            }
+        }
+
+        // Load common content across selected devices
+        async function loadCommonContent() {
+            const contentArea = document.getElementById('deviceContentArea');
+            
+            if (selectedDeviceIds.length === 0) {
+                contentArea.innerHTML = `
+                    <div class="drop-zone">
+                        <i class="fas fa-tv fa-3x mb-3"></i>
+                        <h6>Select devices to manage content</h6>
+                        <p class="mb-0">Check device boxes above to view and manage their content</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            try {
+                // Load content for all selected devices
+                const deviceContents = await Promise.all(
+                    selectedDeviceIds.map(async deviceId => {
+                        const response = await fetch(`/api/device/${deviceId}/content`);
+                        const content = await response.json();
+                        return { deviceId, content };
+                    })
+                );
+                
+                // Find common content across selected devices
+                let commonContent = [];
+                
+                if (selectedDeviceIds.length === 1) {
+                    // Single device - show all content
+                    commonContent = deviceContents[0].content;
+                } else {
+                    // Multiple devices - find intersection
+                    const firstDeviceContent = deviceContents[0].content;
+                    
+                    commonContent = firstDeviceContent.filter(item => {
+                        return deviceContents.every(deviceData => 
+                            deviceData.content.some(content => content.media_id === item.media_id)
+                        );
+                    });
+                }
+                
+                currentDeviceContent = commonContent;
+                renderDeviceContent();
+                
+            } catch (error) {
+                console.error('Error loading device content:', error);
+                contentArea.innerHTML = '<p class="text-danger">Error loading device content.</p>';
+            }
+        }
+
+        // Load media library
+        async function loadMediaLibrary() {
+            try {
+                const response = await fetch('/api/media');
+                const mediaList = await response.json();
+                const container = document.getElementById('mediaLibrary');
+                
+                if (mediaList.length === 0) {
+                    container.innerHTML = '<p class="text-muted text-center">No media in library.</p>';
+                    return;
+                }
+                
+                let html = '<div class="media-grid">';
+                
+                mediaList.forEach(media => {
+                    const thumbnail = createThumbnail(media);
+                    const fileSize = Math.round(media.file_size / 1024) + ' KB';
+                    
+                    html += `
+                        <div class="media-item" draggable="true" data-media-id="${media.id}">
+                            ${thumbnail}
+                            <div class="media-meta">${media.file_type} • ${fileSize}</div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                container.innerHTML = html;
+                
+                setupLibraryDragAndDrop();
+                
+            } catch (error) {
+                console.error('Error loading media library:', error);
+                container.innerHTML = '<p class="text-danger">Error loading media library.</p>';
+            }
+        }
+
+		// Generate video thumbnail
+		function generateVideoThumbnail(media, callback) {
+			const video = document.createElement('video');
+			const canvas = document.createElement('canvas');
+			const ctx = canvas.getContext('2d');
+			
+			video.crossOrigin = 'anonymous';
+			video.muted = true;
+			video.preload = 'metadata';
+			
+			video.onloadedmetadata = function() {
+				// Set canvas size to match video aspect ratio but constrained to thumbnail size
+				const aspectRatio = video.videoWidth / video.videoHeight;
+				canvas.width = 100;
+				canvas.height = 100;
+				
+				// Seek to 5 seconds in, or 10% through the video, whichever is smaller
+				const seekTime = Math.min(5, video.duration * 0.1);
+				video.currentTime = seekTime;
+			};
+			
+			video.onseeked = function() {
+				try {
+					// Draw video frame to canvas
+					ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+					
+					// Convert to data URL
+					const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.7);
+					
+					// Cache the thumbnail
+					localStorage.setItem(`video_thumb_${media.id}`, thumbnailUrl);
+					
+					callback(thumbnailUrl);
+				} catch (error) {
+					console.error('Error generating thumbnail:', error);
+					callback(null);
+				} finally {
+					video.remove();
+					canvas.remove();
+				}
+			};
+			
+			video.onerror = function() {
+				console.error('Error loading video for thumbnail');
+				callback(null);
+				video.remove();
+				canvas.remove();
+			};
+			
+			video.src = `/uploads/${media.filename}`;
+		}
+
+		// Generate thumbnail and update specific element
+		function generateVideoThumbnailForElement(media) {
+			generateVideoThumbnail(media, function(thumbnailUrl) {
+				if (thumbnailUrl) {
+					// Find the media item and update its thumbnail
+					const mediaElement = document.querySelector(`[data-media-id="${media.id}"]`);
+					if (mediaElement) {
+						const placeholder = mediaElement.querySelector('.thumbnail-placeholder');
+						if (placeholder) {
+							placeholder.outerHTML = `<img src="${thumbnailUrl}" class="video-thumbnail" alt="${media.original_name}">`;
+						}
+					}
+				}
+			});
+		}
+
+        // Create thumbnail
+		function createThumbnail(media) {
+			if (media.file_type === 'image') {
+				return `<img src="/uploads/${media.filename}" class="media-thumbnail" alt="${media.original_name}">`;
+			} else {
+				// Check if we have a cached thumbnail
+				const cachedThumb = localStorage.getItem(`video_thumb_${media.id}`);
+				if (cachedThumb) {
+					return `<img src="${cachedThumb}" class="video-thumbnail" alt="${media.original_name}">`;
+				}
+				
+				// Return placeholder with generation class, trigger generation
+				setTimeout(() => generateVideoThumbnailForElement(media), 100);
+				return `<div class="thumbnail-placeholder thumbnail-generating"><i class="fas fa-video"></i></div>`;
+			}
+		}
+
+        // Setup library to device drag and drop
+        function setupLibraryDragAndDrop() {
+            const mediaItems = document.querySelectorAll('.media-item');
+            
+            // Remove existing global event listeners first
+            document.removeEventListener('dragover', globalDragOverHandler);
+            document.removeEventListener('dragleave', globalDragLeaveHandler);
+            document.removeEventListener('drop', globalDropHandler);
+            
+            mediaItems.forEach(item => {
+                const newItem = item.cloneNode(true);
+                item.parentNode.replaceChild(newItem, item);
+                
+                newItem.addEventListener('dragstart', function(e) {
+                    libraryDraggedElement = e.target.closest('.media-item');
+                    libraryDraggedElement.classList.add('dragging');
+                });
+                
+                newItem.addEventListener('dragend', function(e) {
+                    if (libraryDraggedElement) {
+                        libraryDraggedElement.classList.remove('dragging');
+                        libraryDraggedElement = null;
+                    }
+                });
+            });
+            
+            document.addEventListener('dragover', globalDragOverHandler);
+            document.addEventListener('dragleave', globalDragLeaveHandler);
+            document.addEventListener('drop', globalDropHandler);
+        }
+
+        // Global drag handlers
+		function globalDragOverHandler(e) {
+			if (libraryDraggedElement) {
+				e.preventDefault();
+				
+				// Handle delete bin
+				const deleteBin = e.target.closest('#deleteBin');
+				if (deleteBin) {
+					deleteBin.classList.add('drag-over');
+					return;
+				}
+				
+				// Handle device drop zone
+				const dropZone = e.target.closest('.drop-zone');
+				if (dropZone) {
+					dropZone.classList.add('drag-over');
+				}
+			}
+		}
+
+        function globalDragLeaveHandler(e) {
+			if (libraryDraggedElement) {
+				// Handle delete bin
+				const deleteBin = e.target.closest('#deleteBin');
+				if (deleteBin && !deleteBin.contains(e.relatedTarget)) {
+					deleteBin.classList.remove('drag-over');
+				}
+				
+				// Handle device drop zone
+				const dropZone = e.target.closest('.drop-zone');
+				if (dropZone && !dropZone.contains(e.relatedTarget)) {
+					dropZone.classList.remove('drag-over');
+				}
+			}
+		}
+
+        function globalDropHandler(e) {
+			if (libraryDraggedElement) {
+				e.preventDefault();
+				
+				// Handle delete bin drop
+				const deleteBin = e.target.closest('#deleteBin');
+				if (deleteBin) {
+					deleteBin.classList.remove('drag-over');
+					const mediaId = libraryDraggedElement.dataset.mediaId;
+					deleteMediaFromLibrary(mediaId);
+					return;
+				}
+				
+				// Handle device assignment drop - NOW ASSIGNS TO MULTIPLE DEVICES
+				const dropZone = e.target.closest('.drop-zone');
+				if (dropZone && selectedDeviceIds.length > 0) {
+					dropZone.classList.remove('drag-over');
+					const mediaId = libraryDraggedElement.dataset.mediaId;
+					assignMediaToSelectedDevices(mediaId);
+				}
+			}
+		}
+
+        // Assign media to multiple selected devices
+        async function assignMediaToSelectedDevices(mediaId) {
+            if (selectedDeviceIds.length === 0) {
+                alert('No devices selected');
+                return;
+            }
+            
+            try {
+                // Get media details first
+                const mediaResponse = await fetch(`/api/media/${mediaId}`);
+                const media = await mediaResponse.json();
+                
+                if (!media) {
+                    alert('Media not found');
+                    return;
+                }
+                
+                // Set duration based on media type
+                const isVideo = media.file_type === 'video';
+                let displayDuration = 10; // Default for images
+                
+                if (isVideo && media.video_duration) {
+                    displayDuration = media.video_duration; // Use actual video duration
+                }
+                
+                // Get today's date for start date
+                const today = new Date().toISOString().split('T')[0];
+                
+                // Assign to all selected devices
+                const assignmentPromises = selectedDeviceIds.map(deviceId => {
+                    const assignmentData = {
+                        device_id: deviceId,
+                        media_id: parseInt(mediaId),
+                        display_duration: displayDuration,
+                        days_of_week: ['all'],
+                        start_date: today,
+                        end_date: null,
+                        start_time: null,
+                        end_time: null
+                    };
+                    
+                    return fetch('/api/assign-content-with-schedule', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(assignmentData)
+                    });
+                });
+                
+                const results = await Promise.all(assignmentPromises);
+                
+                // Check if all assignments were successful
+                const successCount = results.filter(response => response.ok).length;
+                
+                if (successCount === selectedDeviceIds.length) {
+                    alert(`Content assigned to ${successCount} device(s) successfully`);
+                    loadCommonContent(); // Refresh content display
+                } else {
+                    alert(`Assigned to ${successCount} out of ${selectedDeviceIds.length} devices`);
+                    loadCommonContent(); // Refresh content display
+                }
+                
+            } catch (error) {
+                console.error('Assignment error:', error);
+                alert('Assignment error: ' + error.message);
+            }
+        }
+
+        // Render device content with inline editing - UPDATED FOR MULTI-DEVICE SUPPORT
+        function renderDeviceContent() {
+            const contentArea = document.getElementById('deviceContentArea');
+            const isMultiDevice = selectedDeviceIds.length > 1;
+            
+            if (currentDeviceContent.length === 0) {
+                if (selectedDeviceIds.length === 0) {
+                    contentArea.innerHTML = `
+                        <div class="drop-zone">
+                            <i class="fas fa-tv fa-3x mb-3"></i>
+                            <h6>Select devices to manage content</h6>
+                            <p class="mb-0">Check device boxes above to view and manage their content</p>
+                        </div>
+                    `;
+                } else {
+                    contentArea.innerHTML = `
+                        <div class="drop-zone">
+                            <i class="fas fa-plus-circle fa-3x mb-3"></i>
+                            <h6>No common content found</h6>
+                            <p class="mb-0">Drag media files from the library to assign them to selected devices</p>
+                        </div>
+                    `;
+                }
+                return;
+            }
+
+            let html = '<div class="device-content">';
+            
+            currentDeviceContent.forEach((content, index) => {
+                const thumbnail = createDeviceThumbnail(content);
+                const isVideo = content.file_type === 'video';
+                const itemClass = isMultiDevice ? 'device-content-item multi-device-disabled' : 'device-content-item';
+                const draggableAttr = 'draggable="true"'; // Always allow dragging for delete functionality
+                
+                html += `
+                    <div class="${itemClass}" ${draggableAttr} data-assignment-id="${content.assignment_id}" data-index="${index}">
+                        <div class="play-order">${index + 1}</div>
+                        <div class="drag-handle" title="${isMultiDevice ? 'Reordering disabled for multiple devices' : 'Drag to reorder'}">
+                            <i class="fas fa-grip-vertical"></i>
+                        </div>
+                        <div class="device-content-thumbnail-container">
+							${thumbnail}
+							<div class="thumbnail-status ${content.is_paused ? 'status-paused' : 'status-playing'}">
+								<i class="fas ${content.is_paused ? 'fa-pause' : 'fa-play'}"></i>
+							</div>
+						</div>
+                        <div class="device-content-info">
+                            <div class="device-content-title">${content.original_name}</div>
+                            
+                            <!-- Display Mode Details - REORDERED: file-type, duration, days, times, dates -->
+                            <div class="content-details-display" id="details_${content.assignment_id}">
+                                <div class="content-details-row">
+									<div class="detail-display file-type">
+										<i class="fas fa-file"></i>
+										<span>${content.file_type}</span>
+									</div>
+									<div class="detail-display duration ${isMultiDevice ? 'disabled' : ''}">
+										<i class="fas fa-clock"></i>
+										<span>${isMultiDevice ? '--s' : content.display_duration + 's'}</span>
+									</div>
+									<div class="detail-display days ${isMultiDevice ? 'disabled' : ''}">
+										<i class="fas fa-calendar"></i>
+										<span>${isMultiDevice ? 'n/a' : formatDaysDisplay(content.days_of_week)}</span>
+									</div>
+									<div class="detail-display times ${isMultiDevice ? 'disabled' : ''}">
+										<i class="fas fa-clock"></i>
+										<span>${isMultiDevice ? '--/--' : formatTimeDisplay(content.start_time, content.end_time)}</span>
+									</div>
+									<div class="detail-display dates ${isMultiDevice ? 'disabled' : ''}">
+										<i class="fas fa-calendar-alt"></i>
+										<span>${isMultiDevice ? '--/--' : formatDateDisplay(content.start_date, content.end_date)}</span>
+									</div>
+									<div class="detail-display transition ${isMultiDevice ? 'disabled' : ''}">
+										<i class="fas fa-magic"></i>
+										<span>${isMultiDevice ? 'n/a' : formatTransitionDisplay(content.transition_type, content.transition_duration)}</span>
+									</div>
+								</div>
+                            </div>
+                            
+                            <!-- Edit Form -->
+                            <div class="edit-form" id="edit_${content.assignment_id}">
+                                <div class="form-row">
+                                    <div class="form-col">
+                                        <label class="form-label small">Duration (seconds):</label>
+                                        <input type="number" class="form-control form-control-sm ${isVideo ? 'duration-disabled' : ''}" 
+                                               id="duration_${content.assignment_id}" 
+                                               value="${content.display_duration}" 
+                                               min="1" max="300" 
+                                               ${isVideo ? 'readonly title="Video duration is fixed"' : ''}>
+                                    </div>
+                                    <div class="form-col">
+                                        <label class="form-label small">Start Time:</label>
+                                        <select class="form-select form-select-sm" id="startTime_${content.assignment_id}">
+                                            <option value="">Any time</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-col">
+                                        <label class="form-label small">End Time:</label>
+                                        <select class="form-select form-select-sm" id="endTime_${content.assignment_id}">
+                                            <option value="">Any time</option>
+                                        </select>
+                                    </div>
+                                </div>
+								<div class="form-row">
+									<div class="form-col">
+										<label class="form-label small">Transition Effect:</label>
+										<select class="form-select form-select-sm" id="transitionType_${content.assignment_id}">
+											<option value="none">No Transition</option>
+											<option value="fade">Fade</option>
+											<option value="slide-left">Slide Left</option>
+											<option value="slide-right">Slide Right</option>
+											<option value="slide-up">Slide Up</option>
+											<option value="slide-down">Slide Down</option>
+											<option value="zoom-in">Zoom In</option>
+											<option value="zoom-out">Zoom Out</option>
+										</select>
+									</div>
+									<div class="form-col">
+										<label class="form-label small">Transition Duration:</label>
+										<select class="form-select form-select-sm" id="transitionDuration_${content.assignment_id}">
+											<option value="0.5">Fast (0.5s)</option>
+											<option value="1.0">Normal (1.0s)</option>
+											<option value="1.5">Slow (1.5s)</option>
+											<option value="2.0">Very Slow (2.0s)</option>
+										</select>
+									</div>
+								</div>
+                                <div class="form-row">
+                                    <div class="form-col">
+                                        <label class="form-label small">Days of Week:</label>
+                                        <div class="days-checkboxes">
+                                            <div class="form-check form-check-sm">
+                                                <input class="form-check-input" type="checkbox" id="mon_${content.assignment_id}" value="mon" checked>
+                                                <label class="form-check-label small" for="mon_${content.assignment_id}">Mon</label>
+                                            </div>
+                                            <div class="form-check form-check-sm">
+                                                <input class="form-check-input" type="checkbox" id="tue_${content.assignment_id}" value="tue" checked>
+                                                <label class="form-check-label small" for="tue_${content.assignment_id}">Tue</label>
+                                            </div>
+                                            <div class="form-check form-check-sm">
+                                                <input class="form-check-input" type="checkbox" id="wed_${content.assignment_id}" value="wed" checked>
+                                                <label class="form-check-label small" for="wed_${content.assignment_id}">Wed</label>
+                                            </div>
+                                            <div class="form-check form-check-sm">
+                                                <input class="form-check-input" type="checkbox" id="thu_${content.assignment_id}" value="thu" checked>
+                                                <label class="form-check-label small" for="thu_${content.assignment_id}">Thu</label>
+                                            </div>
+                                            <div class="form-check form-check-sm">
+                                                <input class="form-check-input" type="checkbox" id="fri_${content.assignment_id}" value="fri" checked>
+                                                <label class="form-check-label small" for="fri_${content.assignment_id}">Fri</label>
+                                            </div>
+                                            <div class="form-check form-check-sm">
+                                                <input class="form-check-input" type="checkbox" id="sat_${content.assignment_id}" value="sat" checked>
+                                                <label class="form-check-label small" for="sat_${content.assignment_id}">Sat</label>
+                                            </div>
+                                            <div class="form-check form-check-sm">
+                                                <input class="form-check-input" type="checkbox" id="sun_${content.assignment_id}" value="sun" checked>
+                                                <label class="form-check-label small" for="sun_${content.assignment_id}">Sun</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-col">
+                                        <label class="form-label small">Start Date:</label>
+                                        <input type="date" class="form-control form-control-sm" id="startDate_${content.assignment_id}">
+                                    </div>
+									<div class="form-col">
+										<label class="form-label small">Duration:</label>
+										<select class="form-select form-select-sm" id="durationDropdown_${content.assignment_id}" onchange="calculateEndDate(${content.assignment_id})">
+											<option value="">No end date</option>
+											<option value="1">1 month</option>
+											<option value="2">2 months</option>
+											<option value="3">3 months</option>
+											<option value="6">6 months</option>
+											<option value="12">1 year</option>
+											<option value="custom">Custom</option>
+										</select>
+									</div>
+                                    <div class="form-col">
+                                        <label class="form-label small">End Date:</label>
+                                        <input type="date" class="form-control form-control-sm" id="endDate_${content.assignment_id}">
+                                    </div>
+                                    <div class="form-col-auto">
+                                        <label class="form-label small">&nbsp;</label>
+                                        <div class="d-flex gap-1">
+                                            <button class="btn btn-success btn-sm" onclick="saveContentEdit(${content.assignment_id})">
+                                                <i class="fas fa-save"></i>
+                                            </button>
+                                            <button class="btn btn-secondary btn-sm" onclick="cancelContentEdit(${content.assignment_id})">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="device-content-actions">
+							<label class="pause-toggle" title="${content.is_paused ? 'Resume' : 'Pause'} content">
+								<input type="checkbox" ${content.is_paused ? 'checked' : ''} 
+									   onchange="toggleContentPause(${content.assignment_id}, this.checked)">
+								<span class="toggle-slider"></span>
+							</label>
+							<button class="btn btn-outline-primary btn-sm ${isMultiDevice ? 'disabled-multi-device' : ''}" 
+                                    onclick="${isMultiDevice ? '' : `editContent(${content.assignment_id})`}" 
+                                    title="${isMultiDevice ? 'Editing disabled for multiple devices' : 'Edit'}"
+                                    ${isMultiDevice ? 'disabled' : ''}>
+								<i class="fas fa-edit"></i>
+							</button>
+						</div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            
+            html += `
+                <div class="drop-zone mt-3">
+                    <i class="fas fa-plus-circle fa-2x mb-2"></i>
+                    <p class="mb-0">Drag more media here to add to selected devices</p>
+                </div>
+            `;
+            
+            contentArea.innerHTML = html;
+            
+			setupDeviceReordering(); // Always call, but reordering logic is conditional inside
+            setupDeviceContentBin();
+        }
+
+        // Create device thumbnail
+        function createDeviceThumbnail(content) {
+            if (content.file_type === 'image') {
+                return `<img src="/uploads/${content.filename}" class="device-content-thumbnail" alt="${content.original_name}">`;
+            } else {
+                return `<div class="device-thumbnail-placeholder"><i class="fas fa-video"></i></div>`;
+            }
+        }
+
+		// Add this function with your other format functions
+		function formatTransitionDisplay(transitionType, transitionDuration) {
+			if (!transitionType || transitionType === 'none') return 'No transition';
+			return `${transitionType} (${transitionDuration}s)`;
+		}
+
+        // Setup device content reordering - ONLY FOR SINGLE DEVICE
+		function setupDeviceReordering() {
+			const contentItems = document.querySelectorAll('.device-content-item');
+			const isMultiDevice = selectedDeviceIds.length > 1;
+			
+			contentItems.forEach(item => {
+				item.addEventListener('dragstart', function(e) {
+					if (!libraryDraggedElement) {
+						deviceDraggedElement = e.currentTarget;
+						deviceDraggedElement.classList.add('being-dragged');
+						e.dataTransfer.effectAllowed = 'move';
+						e.dataTransfer.setData('text/plain', 'reorder');
+					} else {
+						e.preventDefault();
+					}
+				});
+
+				item.addEventListener('dragend', function(e) {
+					if (deviceDraggedElement) {
+						deviceDraggedElement.classList.remove('being-dragged');
+						deviceDraggedElement = null;
+						
+						document.querySelectorAll('.device-content-item').forEach(el => {
+							el.classList.remove('drag-over');
+						});
+					}
+				});
+
+				// Only allow reordering drops for single device selection
+				if (!isMultiDevice) {
+					item.addEventListener('dragover', function(e) {
+						if (deviceDraggedElement && !libraryDraggedElement && deviceDraggedElement !== e.currentTarget) {
+							e.preventDefault();
+							e.currentTarget.classList.add('drag-over');
+							e.dataTransfer.dropEffect = 'move';
+						}
+					});
+
+					item.addEventListener('dragleave', function(e) {
+						if (deviceDraggedElement && !libraryDraggedElement) {
+							e.currentTarget.classList.remove('drag-over');
+						}
+					});
+
+					item.addEventListener('drop', function(e) {
+						if (deviceDraggedElement && !libraryDraggedElement && deviceDraggedElement !== e.currentTarget) {
+							e.preventDefault();
+							e.stopPropagation();
+							e.currentTarget.classList.remove('drag-over');
+							
+							const fromIndex = parseInt(deviceDraggedElement.dataset.index);
+							const toIndex = parseInt(e.currentTarget.dataset.index);
+							
+							reorderContent(fromIndex, toIndex);
+						}
+					});
+				}
+			});
+		}
+		
+		// Setup device content bin functionality
+		function setupDeviceContentBin() {
+			const deviceBin = document.getElementById('deviceDeleteBin');
+			if (!deviceBin) return;
+			
+			deviceBin.addEventListener('dragover', function(e) {
+				if (deviceDraggedElement) {
+					e.preventDefault();
+					deviceBin.classList.add('drag-over');
+				}
+			});
+			
+			deviceBin.addEventListener('dragleave', function(e) {
+				if (deviceDraggedElement && !deviceBin.contains(e.relatedTarget)) {
+					deviceBin.classList.remove('drag-over');
+				}
+			});
+			
+			deviceBin.addEventListener('drop', function(e) {
+				if (deviceDraggedElement) {
+					e.preventDefault();
+					deviceBin.classList.remove('drag-over');
+					
+					const assignmentId = deviceDraggedElement.dataset.assignmentId;
+					deviceDraggedElement = null;
+					setTimeout(() => removeContentFromBin(assignmentId), 0);
+				}
+			});
+		}
+
+        // Reorder content
+        async function reorderContent(fromIndex, toIndex) {
+            if (selectedDeviceIds.length !== 1) {
+                alert('Content reordering only works when exactly one device is selected');
+                return;
+            }
+            
+            const item = currentDeviceContent.splice(fromIndex, 1)[0];
+            currentDeviceContent.splice(toIndex, 0, item);
+            
+            const updates = currentDeviceContent.map((content, index) => ({
+                assignment_id: content.assignment_id,
+                play_order: index + 1
+            }));
+
+            try {
+                const response = await fetch('/api/device/reorder-content', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_id: selectedDeviceIds[0],
+                        content_order: updates
+                    })
+                });
+
+                if (response.ok) {
+                    renderDeviceContent();
+                } else {
+                    alert('Failed to reorder content');
+                    loadCommonContent();
+                }
+            } catch (error) {
+                console.error('Error reordering content:', error);
+                alert('Error reordering content: ' + error.message);
+                loadCommonContent();
+            }
+        }
+
+		// Add this new function
+		function refreshDevicesWithCleanup() {
+			loadDevices().then(() => {
+				renderDeviceCheckboxes();
+				
+				// Filter out devices that no longer have content from selection
+				const validSelections = selectedDeviceIds.filter(deviceId => {
+					const device = currentDevices.find(d => d.device_id === deviceId);
+					return device && device.content_count > 0;
+				});
+				
+				// Update selectedDeviceIds to only include devices with content
+				selectedDeviceIds = validSelections;
+				
+				// Re-apply visual selections only for devices that still have content
+				selectedDeviceIds.forEach(deviceId => {
+					const checkbox = document.getElementById(`device_${deviceId}`);
+					if (checkbox) {
+						checkbox.checked = true;
+						const container = checkbox.closest('.device-checkbox-item');
+						container.classList.add('checked');
+					}
+				});
+				
+				// Update ALL checkbox state
+				const allCheckbox = document.getElementById('device_all');
+				if (allCheckbox) {
+					const shouldBeChecked = selectedDeviceIds.length === currentDevices.length && currentDevices.length > 0;
+					allCheckbox.checked = shouldBeChecked;
+					const allContainer = allCheckbox.closest('.device-checkbox-item');
+					if (shouldBeChecked) {
+						allContainer.classList.add('checked');
+					} else {
+						allContainer.classList.remove('checked');
+					}
+				}
+				
+				updateSelectedDevicesInfo();
+			});
+		}	
+
+		// Updated removeContentFromBin function
+		async function removeContentFromBin(assignmentId) {
+			try {
+				if (selectedDeviceIds.length === 1) {
+					const response = await fetch(`/api/remove-content/${assignmentId}`, {
+						method: 'DELETE'
+					});
+					if (response.ok) {
+						currentDeviceContent = currentDeviceContent.filter(
+							content => content.assignment_id != assignmentId
+						);
+						renderDeviceContent();
+						refreshDevicesWithCleanup(); // CHANGED: was loadDevices()
+					} else {
+						loadCommonContent();
+						alert('Failed to remove content');
+					}
+				} else {
+					const content = currentDeviceContent.find(c => c.assignment_id == assignmentId);
+					if (!content) {
+						alert('Content not found');
+						return;
+					}
+					const mediaId = content.media_id;
+					let successCount = 0;
+					let totalAttempts = 0;
+					
+					const removalPromises = selectedDeviceIds.map(async deviceId => {
+						try {
+							totalAttempts++;
+							const response = await fetch(`/api/device/${deviceId}/content`);
+							const deviceContent = await response.json();
+							const assignment = deviceContent.find(c => c.media_id === mediaId);
+							
+							if (assignment) {
+								const deleteResponse = await fetch(`/api/remove-content/${assignment.assignment_id}`, {
+									method: 'DELETE'
+								});
+								if (deleteResponse.ok) {
+									successCount++;
+									return true;
+								}
+							} else {
+								successCount++;
+								return true;
+							}
+							return false;
+						} catch (error) {
+							console.error(`Error removing from device ${deviceId}:`, error);
+							return false;
+						}
+					});
+					
+					await Promise.all(removalPromises);
+					
+					currentDeviceContent = currentDeviceContent.filter(
+						content => content.media_id !== mediaId
+					);
+					renderDeviceContent();
+					refreshDevicesWithCleanup(); // CHANGED: was loadDevices()
+					
+					if (successCount === totalAttempts) {
+						console.log(`Content removed from ${successCount} devices`);
+					} else {
+						alert(`Removed from ${successCount} out of ${totalAttempts} devices`);
+					}
+				}
+			} catch (error) {
+				console.error('Remove error:', error);
+				loadCommonContent();
+				refreshDevicesWithCleanup(); // CHANGED: was loadDevices()
+				alert('Error: ' + error.message);
+			}
+		}
+
+		// Delete media from library
+		async function deleteMediaFromLibrary(mediaId) {
+			try {
+				const response = await fetch('/api/media');
+				const mediaList = await response.json();
+				const media = mediaList.find(m => m.id == mediaId);
+				
+				if (!media) {
+					alert('Media not found');
+					return;
+				}
+				
+				let confirmMessage = `Delete "${media.original_name}" from the library?`;
+				if (media.assignment_count > 0) {
+					confirmMessage += `\n\nWARNING: This media is currently assigned to ${media.assignment_count} device(s). Deleting it will remove it from all devices.`;
+				}
+				confirmMessage += '\n\nThis action cannot be undone.';
+				
+				if (!confirm(confirmMessage)) {
+					return;
+				}
+				
+				const deleteResponse = await fetch(`/api/media/${mediaId}`, {
+					method: 'DELETE'
+				});
+				
+				if (deleteResponse.ok) {
+					loadMediaLibrary();
+					if (selectedDeviceIds.length > 0) {
+						loadCommonContent();
+					}
+					alert('Media deleted successfully');
+				} else {
+					const result = await deleteResponse.json();
+					alert('Delete failed: ' + (result.error || 'Unknown error'));
+				}
+			} catch (error) {
+				console.error('Delete error:', error);
+				alert('Delete error: ' + error.message);
+			}
+		}
+		
+        // Upload Modal Functions
+        function setupUploadModal() {
+            document.getElementById('file').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    displayFileInfo(file);
+                } else {
+                    document.getElementById('fileInfo').style.display = 'none';
+                }
+            });
+
+            document.getElementById('uploadModal').addEventListener('hidden.bs.modal', function() {
+                document.getElementById('uploadForm').reset();
+                document.getElementById('fileInfo').style.display = 'none';
+                if (currentVideoElement) {
+                    currentVideoElement.remove();
+                    currentVideoElement = null;
+                }
+            });
+        }
+
+        function displayFileInfo(file) {
+            const fileInfo = document.getElementById('fileInfo');
+            const fileName = document.getElementById('fileName');
+            const fileSize = document.getElementById('fileSize');
+            const fileType = document.getElementById('fileType');
+            const videoInfo = document.getElementById('videoInfo');
+
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            
+            const isVideo = file.type.startsWith('video/');
+            fileType.textContent = isVideo ? 'Video' : 'Image';
+
+            if (isVideo) {
+                videoInfo.style.display = 'block';
+                loadVideoMetadata(file);
+            } else {
+                videoInfo.style.display = 'none';
+            }
+
+            fileInfo.style.display = 'block';
+        }
+
+        function loadVideoMetadata(file) {
+            if (currentVideoElement) {
+                currentVideoElement.remove();
+            }
+
+            currentVideoElement = document.createElement('video');
+            currentVideoElement.preload = 'metadata';
+            
+            currentVideoElement.onloadedmetadata = function() {
+                const duration = Math.ceil(currentVideoElement.duration);
+                const resolution = `${currentVideoElement.videoWidth}x${currentVideoElement.videoHeight}`;
+                
+                document.getElementById('videoDuration').textContent = formatDuration(duration);
+                document.getElementById('videoResolution').textContent = resolution;
+            };
+
+            currentVideoElement.src = URL.createObjectURL(file);
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Upload file
+        async function uploadFile() {
+            const uploadBtn = document.getElementById('uploadBtn');
+            const originalText = uploadBtn.innerHTML;
+            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Uploading...';
+            uploadBtn.disabled = true;
+            
+            const fileInput = document.getElementById('file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file');
+                uploadBtn.innerHTML = originalText;
+                uploadBtn.disabled = false;
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            let videoDuration = null;
+            let defaultDisplayDuration = 10;
+            
+            if (currentVideoElement && currentVideoElement.duration) {
+                videoDuration = Math.ceil(currentVideoElement.duration);
+                defaultDisplayDuration = videoDuration;
+            }
+            
+            const schedulingData = {
+                days_of_week: ['all'],
+                display_duration: defaultDisplayDuration,
+                video_duration: videoDuration,
+                start_time: null,
+                end_time: null,
+                start_date: null,
+                end_date: null,
+                device_assignment: null
+            };
+            
+            formData.append('scheduling', JSON.stringify(schedulingData));
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('uploadModal')).hide();
+                    loadMediaLibrary();
+                    alert('Content uploaded successfully!');
+                } else {
+                    alert('Upload failed: ' + result.error);
+                }
+            } catch (error) {
+                alert('Upload failed: ' + error.message);
+            } finally {
+                uploadBtn.innerHTML = originalText;
+                uploadBtn.disabled = false;
+            }
+        }
+
+        // Device management functions
+        function loadDeviceManagement() {
+            const container = document.getElementById('deviceManagementList');
+            
+            if (currentDevices.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center">No devices found.</p>';
+                return;
+            }
+            
+            let html = '';
+            currentDevices.forEach(device => {
+                html += `
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-3">
+                                    <strong>Device ID:</strong><br>
+                                    <code>${device.device_id}</code>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>IP Address:</strong><br>
+                                    ${device.ip_address || 'Unknown'}
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-2">
+                                        <label class="form-label small">Custom Name:</label>
+                                        <input type="text" class="form-control form-control-sm" 
+                                               id="name_${device.device_id}" 
+                                               value="${device.custom_name || ''}" 
+                                               placeholder="Enter custom name">
+                                    </div>
+                                    <div>
+                                        <label class="form-label small">Location:</label>
+                                        <input type="text" class="form-control form-control-sm" 
+                                               id="location_${device.device_id}" 
+                                               value="${device.location || ''}" 
+                                               placeholder="Enter location">
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <button class="btn btn-primary btn-sm w-100 mb-2" 
+                                            onclick="saveDeviceInfo('${device.device_id}')">
+                                        <i class="fas fa-save"></i> Save
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm w-100" 
+                                            onclick="deleteDevice('${device.device_id}', '${device.device_name}')">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        async function saveDeviceInfo(deviceId) {
+            const customName = document.getElementById(`name_${deviceId}`).value.trim();
+            const location = document.getElementById(`location_${deviceId}`).value.trim();
+            
+            try {
+                const response = await fetch(`/api/device/${deviceId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        custom_name: customName,
+                        location: location
+                    })
+                });
+                
+                if (response.ok) {
+                    loadDevices();
+                    alert('Device information updated successfully');
+                } else {
+                    alert('Failed to update device information');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function deleteDevice(deviceId, deviceName) {
+            try {
+                const response = await fetch(`/api/device/${deviceId}/content`);
+                const deviceContent = await response.json();
+                
+                let confirmMessage = `Delete device "${deviceName}" (${deviceId})?`;
+                
+                if (deviceContent.length > 0) {
+                    confirmMessage += `\n\nWARNING: This device has ${deviceContent.length} content assignment(s). Deleting the device will remove all its content assignments.`;
+                }
+                
+                confirmMessage += '\n\nThis action cannot be undone.';
+                
+                if (!confirm(confirmMessage)) {
+                    return;
+                }
+                
+                const deleteResponse = await fetch(`/api/device/${deviceId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (deleteResponse.ok) {
+                    selectedDeviceIds = selectedDeviceIds.filter(id => id !== deviceId);
+                    await loadDevices(); 
+                    loadDeviceManagement(); 
+                    
+                    if (selectedDeviceIds.length > 0) {
+                        loadCommonContent();
+                    } else {
+                        updateSelectedDevicesInfo();
+                        const contentArea = document.getElementById('deviceContentArea');
+                        contentArea.innerHTML = `
+                            <div class="drop-zone">
+                                <i class="fas fa-tv fa-3x mb-3"></i>
+                                <h6>Select devices to manage content</h6>
+                                <p class="mb-0">Check device boxes above to view and manage their content</p>
+                            </div>
+                        `;
+                    }
+                    
+                    alert('Device deleted successfully');
+                } else {
+                    const result = await deleteResponse.json();
+                    alert('Delete failed: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Delete device error:', error);
+                alert('Delete error: ' + error.message);
+            }
+        }
+
+        // Load device management when modal opens
+        document.getElementById('manageDevicesModal').addEventListener('shown.bs.modal', function() {
+            loadDeviceManagement();
+        });
+
+        // Content editing functions
+        function editContent(assignmentId) {
+            if (selectedDeviceIds.length !== 1) {
+                alert('Content editing only works when exactly one device is selected');
+                return;
+            }
+            
+            const item = document.querySelector(`[data-assignment-id="${assignmentId}"]`);
+            const detailsDisplay = document.getElementById(`details_${assignmentId}`);
+            const editForm = document.getElementById(`edit_${assignmentId}`);
+            
+            item.classList.add('editing');
+            detailsDisplay.style.display = 'none';
+            editForm.classList.add('active');
+            
+            loadContentEditData(assignmentId);
+        }
+
+        function cancelContentEdit(assignmentId) {
+            const item = document.querySelector(`[data-assignment-id="${assignmentId}"]`);
+            const detailsDisplay = document.getElementById(`details_${assignmentId}`);
+            const editForm = document.getElementById(`edit_${assignmentId}`);
+            
+            item.classList.remove('editing');
+            detailsDisplay.style.display = 'block';
+            editForm.classList.remove('active');
+        }
+
+        async function loadContentEditData(assignmentId) {
+    try {
+        // Populate time selectors FIRST
+        populateTimeSelector(`startTime_${assignmentId}`);
+        populateTimeSelector(`endTime_${assignmentId}`);
+        
+        // Find the content item to get existing data
+        const content = currentDeviceContent.find(c => c.assignment_id == assignmentId);
+        
+        // DEBUG: Log the content data
+        console.log('Content data for assignment', assignmentId, ':', content);
+        
+        if (content) {
+            // Load existing days of week
+            if (content.days_of_week) {
+                try {
+                    const days = JSON.parse(content.days_of_week);
+                    
+                    if (days.includes('all') || days.length === 0) {
+                        ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+                            const checkbox = document.getElementById(`${day}_${assignmentId}`);
+                            if (checkbox) checkbox.checked = true;
+                        });
+                    } else {
+                        ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+                            const checkbox = document.getElementById(`${day}_${assignmentId}`);
+                            if (checkbox) checkbox.checked = false;
+                        });
+                        days.forEach(day => {
+                            if (day !== 'all') {
+                                const checkbox = document.getElementById(`${day}_${assignmentId}`);
+                                if (checkbox) checkbox.checked = true;
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error('Error parsing days of week:', e);
+                    ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+                        const checkbox = document.getElementById(`${day}_${assignmentId}`);
+                        if (checkbox) checkbox.checked = true;
+                    });
+                }
+            } else {
+                ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+                    const checkbox = document.getElementById(`${day}_${assignmentId}`);
+                    if (checkbox) checkbox.checked = true;
+                });
+            }
+            
+            // Load existing dates
+            if (content.start_date) {
+                const startDateInput = document.getElementById(`startDate_${assignmentId}`);
+                if (startDateInput) startDateInput.value = content.start_date;
+            }
+            
+            if (content.end_date) {
+                const endDateInput = document.getElementById(`endDate_${assignmentId}`);
+                if (endDateInput) endDateInput.value = content.end_date;
+            }
+            
+            // Load existing times
+            if (content.start_time) {
+                const startTimeSelect = document.getElementById(`startTime_${assignmentId}`);
+                if (startTimeSelect) startTimeSelect.value = content.start_time;
+            }
+            
+            if (content.end_time) {
+                const endTimeSelect = document.getElementById(`endTime_${assignmentId}`);
+                if (endTimeSelect) endTimeSelect.value = content.end_time;
+            }
+            
+            // Load existing transition settings with debug logging
+            console.log('Transition type from content:', content.transition_type);
+            console.log('Transition duration from content:', content.transition_duration);
+            
+            const transitionSelect = document.getElementById(`transitionType_${assignmentId}`);
+            const durationSelect = document.getElementById(`transitionDuration_${assignmentId}`);
+            
+            console.log('Found transition select element:', transitionSelect);
+            console.log('Found duration select element:', durationSelect);
+            
+            if (transitionSelect) {
+                const transitionValue = content.transition_type || 'fade';
+                transitionSelect.value = transitionValue;
+                console.log('Set transition type to:', transitionValue, 'Actual value now:', transitionSelect.value);
+            }
+            
+            if (durationSelect) {
+				let durationValue = content.transition_duration || 1.0;
+				
+				// Convert to string with one decimal place to match select options
+				if (durationValue == 0.5) durationValue = "0.5";
+				else if (durationValue == 1) durationValue = "1.0";
+				else if (durationValue == 1.5) durationValue = "1.5";
+				else if (durationValue == 2) durationValue = "2.0";
+				else durationValue = "1.0"; // default fallback
+				
+				durationSelect.value = durationValue;
+				console.log('Set transition duration to:', durationValue, 'Actual value now:', durationSelect.value);
+			}
+        }
+        
+    } catch (error) {
+        console.error('Error loading content data:', error);
+        populateTimeSelector(`startTime_${assignmentId}`);
+        populateTimeSelector(`endTime_${assignmentId}`);
+    }
+}
+        function populateTimeSelector(selectorId) {
+            const selector = document.getElementById(selectorId);
+            if (selector && selector.options.length <= 1) {
+                for (let hour = 0; hour < 24; hour++) {
+                    for (let min = 0; min < 60; min += 15) {
+                        const timeStr = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+                        const displayStr = `${hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}:${min.toString().padStart(2, '0')} ${hour < 12 ? 'AM' : 'PM'}`;
+                        const option = document.createElement('option');
+                        option.value = timeStr;
+                        option.textContent = displayStr;
+                        selector.appendChild(option);
+                    }
+                }
+            }
+        }
+
+		async function saveContentEdit(assignmentId) {
+			const selectedDays = [];
+			['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+				const checkbox = document.getElementById(`${day}_${assignmentId}`);
+				if (checkbox && checkbox.checked) {
+					selectedDays.push(day);
+				}
+			});
+
+			const updateData = {
+				display_duration: parseInt(document.getElementById(`duration_${assignmentId}`).value),
+				days_of_week: selectedDays.length > 0 ? selectedDays : ['all'],
+				start_time: document.getElementById(`startTime_${assignmentId}`).value || null,
+				end_time: document.getElementById(`endTime_${assignmentId}`).value || null,
+				start_date: document.getElementById(`startDate_${assignmentId}`).value || null,
+				end_date: document.getElementById(`endDate_${assignmentId}`).value || null,
+				transition_type: document.getElementById(`transitionType_${assignmentId}`).value || 'fade',
+				transition_duration: parseFloat(document.getElementById(`transitionDuration_${assignmentId}`).value) || 1.0
+			};
+
+			try {
+				const response = await fetch(`/api/device-content/${assignmentId}/schedule`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(updateData)
+				});
+
+				if (response.ok) {
+					cancelContentEdit(assignmentId);
+					loadCommonContent();
+					alert('Content settings updated successfully');
+				} else {
+					alert('Failed to update content settings');
+				}
+			} catch (error) {
+				alert('Error: ' + error.message);
+			}
+		}
+        function calculateEndDate(assignmentId) {
+            const startDate = document.getElementById(`startDate_${assignmentId}`).value;
+            const durationSelect = document.getElementById(`durationDropdown_${assignmentId}`).value;
+            const endDateInput = document.getElementById(`endDate_${assignmentId}`);
+            
+            if (durationSelect === 'custom') {
+                endDateInput.readOnly = false;
+                endDateInput.style.backgroundColor = '';
+                return;
+            }
+            
+            endDateInput.readOnly = true;
+            endDateInput.style.backgroundColor = '#f8f9fa';
+            
+            if (startDate && durationSelect && durationSelect !== 'custom') {
+                const start = new Date(startDate);
+                const end = new Date(start.getFullYear(), start.getMonth() + parseInt(durationSelect), start.getDate());
+                endDateInput.value = end.toISOString().split('T')[0];
+            } else {
+                endDateInput.value = '';
+            }
+        }
+
+        function refreshAll() {
+			loadDevices().then(() => {
+				renderDeviceCheckboxes();
+				
+				// Filter out devices that no longer have content if they were selected
+				const validSelections = selectedDeviceIds.filter(deviceId => {
+					const device = currentDevices.find(d => d.device_id === deviceId);
+					return device && device.content_count > 0;
+				});
+				
+				// Update selectedDeviceIds to only include devices with content
+				selectedDeviceIds = validSelections;
+				
+				// Re-apply visual selections only for devices that still have content
+				selectedDeviceIds.forEach(deviceId => {
+					const checkbox = document.getElementById(`device_${deviceId}`);
+					if (checkbox) {
+						checkbox.checked = true;
+						const container = checkbox.closest('.device-checkbox-item');
+						container.classList.add('checked');
+					}
+				});
+				
+				// Update ALL checkbox state
+				const allCheckbox = document.getElementById('device_all');
+				if (allCheckbox) {
+					const shouldBeChecked = selectedDeviceIds.length === currentDevices.length && currentDevices.length > 0;
+					allCheckbox.checked = shouldBeChecked;
+					const allContainer = allCheckbox.closest('.device-checkbox-item');
+					if (shouldBeChecked) {
+						allContainer.classList.add('checked');
+					} else {
+						allContainer.classList.remove('checked');
+					}
+				}
+				
+				updateSelectedDevicesInfo();
+			});
+			
+			loadMediaLibrary();
+			
+			if (selectedDeviceIds.length > 0) {
+				loadCommonContent();
+			} else {
+				// If no devices are selected after cleanup, show the default message
+				const contentArea = document.getElementById('deviceContentArea');
+				contentArea.innerHTML = `
+					<div class="drop-zone">
+						<i class="fas fa-tv fa-3x mb-3"></i>
+						<h6>Select devices to manage content</h6>
+						<p class="mb-0">Check device boxes above to view and manage their content</p>
+					</div>
+				`;
+			}
+		}
+
+        async function toggleContentPause(assignmentId, isPaused) {
+            try {
+                const response = await fetch(`/api/device-content/${assignmentId}/pause`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_paused: isPaused })
+                });
+
+                if (response.ok) {
+                    const content = currentDeviceContent.find(c => c.assignment_id === assignmentId);
+                    if (content) {
+                        content.is_paused = isPaused;
+                    }
+                    
+                    const thumbnailStatus = document.querySelector(`[data-assignment-id="${assignmentId}"] .thumbnail-status`);
+                    if (thumbnailStatus) {
+                        thumbnailStatus.className = `thumbnail-status ${isPaused ? 'status-paused' : 'status-playing'}`;
+                        thumbnailStatus.innerHTML = `<i class="fas ${isPaused ? 'fa-pause' : 'fa-play'}"></i>`;
+                    }
+                    
+                    const toggle = document.querySelector(`[data-assignment-id="${assignmentId}"] .pause-toggle`);
+                    if (toggle) {
+                        toggle.title = `${isPaused ? 'Resume' : 'Pause'} content`;
+                    }
+                } else {
+                    alert('Failed to update content status');
+                    const checkbox = document.querySelector(`[data-assignment-id="${assignmentId}"] .pause-toggle input`);
+                    if (checkbox) checkbox.checked = !isPaused;
+                }
+            } catch (error) {
+                console.error('Toggle pause error:', error);
+                alert('Error: ' + error.message);
+                const checkbox = document.querySelector(`[data-assignment-id="${assignmentId}"] .pause-toggle input`);
+                if (checkbox) checkbox.checked = !isPaused;
+            }
+        }
+
+        // Format display functions
+        function formatDaysDisplay(daysJson) {
+            if (!daysJson) return 'All days';
+            try {
+                const days = JSON.parse(daysJson);
+                if (days.includes('all') || days.length === 0 || days.length === 7) return 'All days';
+                return days.map(d => d.toUpperCase()).join(', ');
+            } catch (e) {
+                return 'All days';
+            }
+        }
+
+        function formatTimeDisplay(startTime, endTime) {
+            if (!startTime && !endTime) return 'All day';
+            if (startTime && endTime) return `${startTime} - ${endTime}`;
+            if (startTime) return `From ${startTime}`;
+            if (endTime) return `Until ${endTime}`;
+            return 'All day';
+        }
+
+        function formatDateDisplay(startDate, endDate) {
+            if (!startDate && !endDate) return 'No dates';
+            if (startDate && endDate) {
+                const start = new Date(startDate).toLocaleDateString();
+                const end = new Date(endDate).toLocaleDateString();
+                return `${start} - ${end}`;
+            }
+            if (startDate) {
+                const start = new Date(startDate).toLocaleDateString();
+                return `From ${start}`;
+            }
+            if (endDate) {
+                const end = new Date(endDate).toLocaleDateString();
+                return `Until ${end}`;
+            }
+            return 'No dates';
+        }
+
+        // Initialize page with real database loading
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDevices();
+            loadMediaLibrary();
+            setupUploadModal();
+        });
+    </script>
+</body>
+</html>

@@ -213,7 +213,16 @@
 			border-radius: 0.25rem;
 			border: 1px solid #f1aeb5;
 		}
-
+		
+		/* ADD THIS NEW TRANSITION STYLE */
+		.detail-display.transition {
+			color: #6f42c1;
+			background-color: #f3e8ff;
+			padding: 0.125rem 0.5rem;
+			border-radius: 0.25rem;
+			border: 1px solid #d1b3ff;
+		}
+		
 		/* MULTI-DEVICE DISABLED STATES */
 		.detail-display.disabled {
 			color: #6c757d !important;
@@ -625,8 +634,8 @@
                 <i class="fas fa-tv me-2"></i>Device Management
             </span>
             <div class="navbar-nav ms-auto">
-                <a class="nav-link text-white" href="/">Upload Content</a>
-                <a class="nav-link text-white" href="/devices">Manage Devices</a>
+                <!--<a class="nav-link text-white" href="/">Upload Content</a>
+                <a class="nav-link text-white" href="/devices">Manage Devices</a>-->
             </div>
         </div>
     </nav>
@@ -1370,6 +1379,10 @@
 										<i class="fas fa-calendar-alt"></i>
 										<span>${isMultiDevice ? '--/--' : formatDateDisplay(content.start_date, content.end_date)}</span>
 									</div>
+									<div class="detail-display transition ${isMultiDevice ? 'disabled' : ''}">
+										<i class="fas fa-magic"></i>
+										<span>${isMultiDevice ? 'n/a' : formatTransitionDisplay(content.transition_type, content.transition_duration)}</span>
+									</div>
 								</div>
                             </div>
                             
@@ -1397,7 +1410,30 @@
                                         </select>
                                     </div>
                                 </div>
-                                
+								<div class="form-row">
+									<div class="form-col">
+										<label class="form-label small">Transition Effect:</label>
+										<select class="form-select form-select-sm" id="transitionType_${content.assignment_id}">
+											<option value="none">No Transition</option>
+											<option value="fade">Fade</option>
+											<option value="slide-left">Slide Left</option>
+											<option value="slide-right">Slide Right</option>
+											<option value="slide-up">Slide Up</option>
+											<option value="slide-down">Slide Down</option>
+											<option value="zoom-in">Zoom In</option>
+											<option value="zoom-out">Zoom Out</option>
+										</select>
+									</div>
+									<div class="form-col">
+										<label class="form-label small">Transition Duration:</label>
+										<select class="form-select form-select-sm" id="transitionDuration_${content.assignment_id}">
+											<option value="0.5">Fast (0.5s)</option>
+											<option value="1.0">Normal (1.0s)</option>
+											<option value="1.5">Slow (1.5s)</option>
+											<option value="2.0">Very Slow (2.0s)</option>
+										</select>
+									</div>
+								</div>
                                 <div class="form-row">
                                     <div class="form-col">
                                         <label class="form-label small">Days of Week:</label>
@@ -1509,6 +1545,12 @@
                 return `<div class="device-thumbnail-placeholder"><i class="fas fa-video"></i></div>`;
             }
         }
+
+		// Add this function with your other format functions
+		function formatTransitionDisplay(transitionType, transitionDuration) {
+			if (!transitionType || transitionType === 'none') return 'No transition';
+			return `${transitionType} (${transitionDuration}s)`;
+		}
 
         // Setup device content reordering - ONLY FOR SINGLE DEVICE
 		function setupDeviceReordering() {
@@ -1638,82 +1680,121 @@
             }
         }
 
-        // Remove content from bin
-        async function removeContentFromBin(assignmentId) {
-            try {
-                if (selectedDeviceIds.length === 1) {
-                    const response = await fetch(`/api/remove-content/${assignmentId}`, {
-                        method: 'DELETE'
-                    });
+		// Add this new function
+		function refreshDevicesWithCleanup() {
+			loadDevices().then(() => {
+				renderDeviceCheckboxes();
+				
+				// Filter out devices that no longer have content from selection
+				const validSelections = selectedDeviceIds.filter(deviceId => {
+					const device = currentDevices.find(d => d.device_id === deviceId);
+					return device && device.content_count > 0;
+				});
+				
+				// Update selectedDeviceIds to only include devices with content
+				selectedDeviceIds = validSelections;
+				
+				// Re-apply visual selections only for devices that still have content
+				selectedDeviceIds.forEach(deviceId => {
+					const checkbox = document.getElementById(`device_${deviceId}`);
+					if (checkbox) {
+						checkbox.checked = true;
+						const container = checkbox.closest('.device-checkbox-item');
+						container.classList.add('checked');
+					}
+				});
+				
+				// Update ALL checkbox state
+				const allCheckbox = document.getElementById('device_all');
+				if (allCheckbox) {
+					const shouldBeChecked = selectedDeviceIds.length === currentDevices.length && currentDevices.length > 0;
+					allCheckbox.checked = shouldBeChecked;
+					const allContainer = allCheckbox.closest('.device-checkbox-item');
+					if (shouldBeChecked) {
+						allContainer.classList.add('checked');
+					} else {
+						allContainer.classList.remove('checked');
+					}
+				}
+				
+				updateSelectedDevicesInfo();
+			});
+		}	
 
-                    if (response.ok) {
-                        currentDeviceContent = currentDeviceContent.filter(
-                            content => content.assignment_id != assignmentId
-                        );
-                        renderDeviceContent();
-                        loadDevices();
-                    } else {
-                        loadCommonContent();
-                        alert('Failed to remove content');
-                    }
-                } else {
-                    const content = currentDeviceContent.find(c => c.assignment_id == assignmentId);
-                    if (!content) {
-                        alert('Content not found');
-                        return;
-                    }
-
-                    const mediaId = content.media_id;
-                    let successCount = 0;
-                    let totalAttempts = 0;
-                    
-                    const removalPromises = selectedDeviceIds.map(async deviceId => {
-                        try {
-                            totalAttempts++;
-                            const response = await fetch(`/api/device/${deviceId}/content`);
-                            const deviceContent = await response.json();
-                            const assignment = deviceContent.find(c => c.media_id === mediaId);
-                            
-                            if (assignment) {
-                                const deleteResponse = await fetch(`/api/remove-content/${assignment.assignment_id}`, {
-                                    method: 'DELETE'
-                                });
-                                if (deleteResponse.ok) {
-                                    successCount++;
-                                    return true;
-                                }
-                            } else {
-                                successCount++;
-                                return true;
-                            }
-                            return false;
-                        } catch (error) {
-                            console.error(`Error removing from device ${deviceId}:`, error);
-                            return false;
-                        }
-                    });
-                    
-                    await Promise.all(removalPromises);
-                    
-                    currentDeviceContent = currentDeviceContent.filter(
-                        content => content.media_id !== mediaId
-                    );
-                    renderDeviceContent();
-                    loadDevices();
-                    
-                    if (successCount === totalAttempts) {
-                        console.log(`Content removed from ${successCount} devices`);
-                    } else {
-                        alert(`Removed from ${successCount} out of ${totalAttempts} devices`);
-                    }
-                }
-            } catch (error) {
-                console.error('Remove error:', error);
-                loadCommonContent();
-                loadDevices();
-                alert('Error: ' + error.message);
-            }
-        }
+		// Updated removeContentFromBin function
+		async function removeContentFromBin(assignmentId) {
+			try {
+				if (selectedDeviceIds.length === 1) {
+					const response = await fetch(`/api/remove-content/${assignmentId}`, {
+						method: 'DELETE'
+					});
+					if (response.ok) {
+						currentDeviceContent = currentDeviceContent.filter(
+							content => content.assignment_id != assignmentId
+						);
+						renderDeviceContent();
+						refreshDevicesWithCleanup(); // CHANGED: was loadDevices()
+					} else {
+						loadCommonContent();
+						alert('Failed to remove content');
+					}
+				} else {
+					const content = currentDeviceContent.find(c => c.assignment_id == assignmentId);
+					if (!content) {
+						alert('Content not found');
+						return;
+					}
+					const mediaId = content.media_id;
+					let successCount = 0;
+					let totalAttempts = 0;
+					
+					const removalPromises = selectedDeviceIds.map(async deviceId => {
+						try {
+							totalAttempts++;
+							const response = await fetch(`/api/device/${deviceId}/content`);
+							const deviceContent = await response.json();
+							const assignment = deviceContent.find(c => c.media_id === mediaId);
+							
+							if (assignment) {
+								const deleteResponse = await fetch(`/api/remove-content/${assignment.assignment_id}`, {
+									method: 'DELETE'
+								});
+								if (deleteResponse.ok) {
+									successCount++;
+									return true;
+								}
+							} else {
+								successCount++;
+								return true;
+							}
+							return false;
+						} catch (error) {
+							console.error(`Error removing from device ${deviceId}:`, error);
+							return false;
+						}
+					});
+					
+					await Promise.all(removalPromises);
+					
+					currentDeviceContent = currentDeviceContent.filter(
+						content => content.media_id !== mediaId
+					);
+					renderDeviceContent();
+					refreshDevicesWithCleanup(); // CHANGED: was loadDevices()
+					
+					if (successCount === totalAttempts) {
+						console.log(`Content removed from ${successCount} devices`);
+					} else {
+						alert(`Removed from ${successCount} out of ${totalAttempts} devices`);
+					}
+				}
+			} catch (error) {
+				console.error('Remove error:', error);
+				loadCommonContent();
+				refreshDevicesWithCleanup(); // CHANGED: was loadDevices()
+				alert('Error: ' + error.message);
+			}
+		}
 
 		// Delete media from library
 		async function deleteMediaFromLibrary(mediaId) {
@@ -2066,76 +2147,113 @@
         }
 
         async function loadContentEditData(assignmentId) {
-            try {
-                populateTimeSelector(`startTime_${assignmentId}`);
-                populateTimeSelector(`endTime_${assignmentId}`);
-                
-                const content = currentDeviceContent.find(c => c.assignment_id == assignmentId);
-                
-                if (content) {
-                    if (content.days_of_week) {
-                        try {
-                            const days = JSON.parse(content.days_of_week);
-                            
-                            if (days.includes('all') || days.length === 0) {
-                                ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
-                                    const checkbox = document.getElementById(`${day}_${assignmentId}`);
-                                    if (checkbox) checkbox.checked = true;
-                                });
-                            } else {
-                                ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
-                                    const checkbox = document.getElementById(`${day}_${assignmentId}`);
-                                    if (checkbox) checkbox.checked = false;
-                                });
-                                days.forEach(day => {
-                                    if (day !== 'all') {
-                                        const checkbox = document.getElementById(`${day}_${assignmentId}`);
-                                        if (checkbox) checkbox.checked = true;
-                                    }
-                                });
-                            }
-                        } catch (e) {
-                            console.error('Error parsing days of week:', e);
-                            ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
-                                const checkbox = document.getElementById(`${day}_${assignmentId}`);
-                                if (checkbox) checkbox.checked = true;
-                            });
-                        }
-                    } else {
+    try {
+        // Populate time selectors FIRST
+        populateTimeSelector(`startTime_${assignmentId}`);
+        populateTimeSelector(`endTime_${assignmentId}`);
+        
+        // Find the content item to get existing data
+        const content = currentDeviceContent.find(c => c.assignment_id == assignmentId);
+        
+        // DEBUG: Log the content data
+        console.log('Content data for assignment', assignmentId, ':', content);
+        
+        if (content) {
+            // Load existing days of week
+            if (content.days_of_week) {
+                try {
+                    const days = JSON.parse(content.days_of_week);
+                    
+                    if (days.includes('all') || days.length === 0) {
                         ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
                             const checkbox = document.getElementById(`${day}_${assignmentId}`);
                             if (checkbox) checkbox.checked = true;
                         });
+                    } else {
+                        ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+                            const checkbox = document.getElementById(`${day}_${assignmentId}`);
+                            if (checkbox) checkbox.checked = false;
+                        });
+                        days.forEach(day => {
+                            if (day !== 'all') {
+                                const checkbox = document.getElementById(`${day}_${assignmentId}`);
+                                if (checkbox) checkbox.checked = true;
+                            }
+                        });
                     }
-                    
-                    if (content.start_date) {
-                        const startDateInput = document.getElementById(`startDate_${assignmentId}`);
-                        if (startDateInput) startDateInput.value = content.start_date;
-                    }
-                    
-                    if (content.end_date) {
-                        const endDateInput = document.getElementById(`endDate_${assignmentId}`);
-                        if (endDateInput) endDateInput.value = content.end_date;
-                    }
-                    
-                    if (content.start_time) {
-                        const startTimeSelect = document.getElementById(`startTime_${assignmentId}`);
-                        if (startTimeSelect) startTimeSelect.value = content.start_time;
-                    }
-                    
-                    if (content.end_time) {
-                        const endTimeSelect = document.getElementById(`endTime_${assignmentId}`);
-                        if (endTimeSelect) endTimeSelect.value = content.end_time;
-                    }
+                } catch (e) {
+                    console.error('Error parsing days of week:', e);
+                    ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+                        const checkbox = document.getElementById(`${day}_${assignmentId}`);
+                        if (checkbox) checkbox.checked = true;
+                    });
                 }
-                
-            } catch (error) {
-                console.error('Error loading content data:', error);
-                populateTimeSelector(`startTime_${assignmentId}`);
-                populateTimeSelector(`endTime_${assignmentId}`);
+            } else {
+                ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+                    const checkbox = document.getElementById(`${day}_${assignmentId}`);
+                    if (checkbox) checkbox.checked = true;
+                });
             }
+            
+            // Load existing dates
+            if (content.start_date) {
+                const startDateInput = document.getElementById(`startDate_${assignmentId}`);
+                if (startDateInput) startDateInput.value = content.start_date;
+            }
+            
+            if (content.end_date) {
+                const endDateInput = document.getElementById(`endDate_${assignmentId}`);
+                if (endDateInput) endDateInput.value = content.end_date;
+            }
+            
+            // Load existing times
+            if (content.start_time) {
+                const startTimeSelect = document.getElementById(`startTime_${assignmentId}`);
+                if (startTimeSelect) startTimeSelect.value = content.start_time;
+            }
+            
+            if (content.end_time) {
+                const endTimeSelect = document.getElementById(`endTime_${assignmentId}`);
+                if (endTimeSelect) endTimeSelect.value = content.end_time;
+            }
+            
+            // Load existing transition settings with debug logging
+            console.log('Transition type from content:', content.transition_type);
+            console.log('Transition duration from content:', content.transition_duration);
+            
+            const transitionSelect = document.getElementById(`transitionType_${assignmentId}`);
+            const durationSelect = document.getElementById(`transitionDuration_${assignmentId}`);
+            
+            console.log('Found transition select element:', transitionSelect);
+            console.log('Found duration select element:', durationSelect);
+            
+            if (transitionSelect) {
+                const transitionValue = content.transition_type || 'fade';
+                transitionSelect.value = transitionValue;
+                console.log('Set transition type to:', transitionValue, 'Actual value now:', transitionSelect.value);
+            }
+            
+            if (durationSelect) {
+				let durationValue = content.transition_duration || 1.0;
+				
+				// Convert to string with one decimal place to match select options
+				if (durationValue == 0.5) durationValue = "0.5";
+				else if (durationValue == 1) durationValue = "1.0";
+				else if (durationValue == 1.5) durationValue = "1.5";
+				else if (durationValue == 2) durationValue = "2.0";
+				else durationValue = "1.0"; // default fallback
+				
+				durationSelect.value = durationValue;
+				console.log('Set transition duration to:', durationValue, 'Actual value now:', durationSelect.value);
+			}
         }
-
+        
+    } catch (error) {
+        console.error('Error loading content data:', error);
+        populateTimeSelector(`startTime_${assignmentId}`);
+        populateTimeSelector(`endTime_${assignmentId}`);
+    }
+}
         function populateTimeSelector(selectorId) {
             const selector = document.getElementById(selectorId);
             if (selector && selector.options.length <= 1) {
@@ -2152,43 +2270,44 @@
             }
         }
 
-        async function saveContentEdit(assignmentId) {
-            const selectedDays = [];
-            ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
-                const checkbox = document.getElementById(`${day}_${assignmentId}`);
-                if (checkbox && checkbox.checked) {
-                    selectedDays.push(day);
-                }
-            });
+		async function saveContentEdit(assignmentId) {
+			const selectedDays = [];
+			['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
+				const checkbox = document.getElementById(`${day}_${assignmentId}`);
+				if (checkbox && checkbox.checked) {
+					selectedDays.push(day);
+				}
+			});
 
-            const updateData = {
-                display_duration: parseInt(document.getElementById(`duration_${assignmentId}`).value),
-                days_of_week: selectedDays.length > 0 ? selectedDays : ['all'],
-                start_time: document.getElementById(`startTime_${assignmentId}`).value || null,
-                end_time: document.getElementById(`endTime_${assignmentId}`).value || null,
-                start_date: document.getElementById(`startDate_${assignmentId}`).value || null,
-                end_date: document.getElementById(`endDate_${assignmentId}`).value || null
-            };
+			const updateData = {
+				display_duration: parseInt(document.getElementById(`duration_${assignmentId}`).value),
+				days_of_week: selectedDays.length > 0 ? selectedDays : ['all'],
+				start_time: document.getElementById(`startTime_${assignmentId}`).value || null,
+				end_time: document.getElementById(`endTime_${assignmentId}`).value || null,
+				start_date: document.getElementById(`startDate_${assignmentId}`).value || null,
+				end_date: document.getElementById(`endDate_${assignmentId}`).value || null,
+				transition_type: document.getElementById(`transitionType_${assignmentId}`).value || 'fade',
+				transition_duration: parseFloat(document.getElementById(`transitionDuration_${assignmentId}`).value) || 1.0
+			};
 
-            try {
-                const response = await fetch(`/api/device-content/${assignmentId}/schedule`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updateData)
-                });
+			try {
+				const response = await fetch(`/api/device-content/${assignmentId}/schedule`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(updateData)
+				});
 
-                if (response.ok) {
-                    cancelContentEdit(assignmentId);
-                    loadCommonContent();
-                    alert('Content settings updated successfully');
-                } else {
-                    alert('Failed to update content settings');
-                }
-            } catch (error) {
-                alert('Error: ' + error.message);
-            }
-        }
-
+				if (response.ok) {
+					cancelContentEdit(assignmentId);
+					loadCommonContent();
+					alert('Content settings updated successfully');
+				} else {
+					alert('Failed to update content settings');
+				}
+			} catch (error) {
+				alert('Error: ' + error.message);
+			}
+		}
         function calculateEndDate(assignmentId) {
             const startDate = document.getElementById(`startDate_${assignmentId}`).value;
             const durationSelect = document.getElementById(`durationDropdown_${assignmentId}`).value;
@@ -2213,36 +2332,60 @@
         }
 
         function refreshAll() {
-            loadDevices().then(() => {
-                renderDeviceCheckboxes();
-                const currentSelections = [...selectedDeviceIds];
-                selectedDeviceIds = [];
-                
-                currentSelections.forEach(deviceId => {
-                    const checkbox = document.getElementById(`device_${deviceId}`);
-                    if (checkbox) {
-                        checkbox.checked = true;
-                        const container = checkbox.closest('.device-checkbox-item');
-                        container.classList.add('checked');
-                        selectedDeviceIds.push(deviceId);
-                    }
-                });
-                
-                const allCheckbox = document.getElementById('device_all');
-                if (allCheckbox && selectedDeviceIds.length === currentDevices.length) {
-                    allCheckbox.checked = true;
-                    allCheckbox.closest('.device-checkbox-item').classList.add('checked');
-                }
-                
-                updateSelectedDevicesInfo();
-            });
-            
-            loadMediaLibrary();
-            
-            if (selectedDeviceIds.length > 0) {
-                loadCommonContent();
-            }
-        }
+			loadDevices().then(() => {
+				renderDeviceCheckboxes();
+				
+				// Filter out devices that no longer have content if they were selected
+				const validSelections = selectedDeviceIds.filter(deviceId => {
+					const device = currentDevices.find(d => d.device_id === deviceId);
+					return device && device.content_count > 0;
+				});
+				
+				// Update selectedDeviceIds to only include devices with content
+				selectedDeviceIds = validSelections;
+				
+				// Re-apply visual selections only for devices that still have content
+				selectedDeviceIds.forEach(deviceId => {
+					const checkbox = document.getElementById(`device_${deviceId}`);
+					if (checkbox) {
+						checkbox.checked = true;
+						const container = checkbox.closest('.device-checkbox-item');
+						container.classList.add('checked');
+					}
+				});
+				
+				// Update ALL checkbox state
+				const allCheckbox = document.getElementById('device_all');
+				if (allCheckbox) {
+					const shouldBeChecked = selectedDeviceIds.length === currentDevices.length && currentDevices.length > 0;
+					allCheckbox.checked = shouldBeChecked;
+					const allContainer = allCheckbox.closest('.device-checkbox-item');
+					if (shouldBeChecked) {
+						allContainer.classList.add('checked');
+					} else {
+						allContainer.classList.remove('checked');
+					}
+				}
+				
+				updateSelectedDevicesInfo();
+			});
+			
+			loadMediaLibrary();
+			
+			if (selectedDeviceIds.length > 0) {
+				loadCommonContent();
+			} else {
+				// If no devices are selected after cleanup, show the default message
+				const contentArea = document.getElementById('deviceContentArea');
+				contentArea.innerHTML = `
+					<div class="drop-zone">
+						<i class="fas fa-tv fa-3x mb-3"></i>
+						<h6>Select devices to manage content</h6>
+						<p class="mb-0">Check device boxes above to view and manage their content</p>
+					</div>
+				`;
+			}
+		}
 
         async function toggleContentPause(assignmentId, isPaused) {
             try {
