@@ -62,6 +62,14 @@ class MainActivity : AppCompatActivity() {
     private var deviceId: String = ""
     private var serverIp: String = "192.168.1.143:5000"
 
+    // Cache keys
+    private val PREF_PLAYLIST_JSON = "cached_playlist_json"
+    private val PREF_PLAYLIST_SAVED_AT = "cached_playlist_saved_at"
+
+    // Runtime flags
+    private var usingCache = false
+    private var lastSyncEpochMs: Long = 0L
+
     private val prefs: SharedPreferences by lazy {
         getSharedPreferences("signage_prefs", Context.MODE_PRIVATE)
     }
@@ -79,8 +87,13 @@ class MainActivity : AppCompatActivity() {
         loadSettings()
         generateDeviceId()
 
+        // Phase 2: start playback from cached playlist immediately if available
+        tryStartFromCache()
+
+        // Always attempt live fetch afterwards
         connectToServer(reason = "startup")
     }
+
 
     private fun setupFullScreen() {
         window.decorView.systemUiVisibility = (
@@ -218,8 +231,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateDeviceInfo() {
         val currentTime = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-        deviceInfoText.text = "Device: $deviceId | Server: $serverIp | Time: $currentTime"
+        val mode = if (usingCache) "CACHED" else "LIVE"
+        val lastSync = formatLastSync()
+        deviceInfoText.text = "Device: $deviceId | Server: $serverIp | Mode: $mode | Last sync: $lastSync | Time: $currentTime"
     }
+
 
     private fun connectToServer(reason: String) {
         statusText.text = "Connecting to server..."
@@ -244,24 +260,74 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 connection.disconnect()
-
                 responseCode to body
             }
 
             withContext(Dispatchers.Main) {
                 result.onSuccess { (code, body) ->
                     if (code == 200 && body != null) {
-                        parseAndDisplayPlaylist(body)
+                        usingCache = false
+						try {
+							parseAndDisplayPlaylist(body)
+							savePlaylistCache(body) // only after successful parse
+							statusText.text = "Live mode: playlist loaded"
+						} catch (e: Exception) {
+							statusText.text = "Live playlist parse failed: ${e.message}"
+							if (!isPlaying) {
+								tryStartFromCache()
+							}
+							scheduleRetry(reason = "live_parse_failed")
+						}
+
                     } else {
                         statusText.text = "Server error: $code"
+                        if (!isPlaying) {
+                            tryStartFromCache()
+                        }
                         scheduleRetry(reason = "server_error_$code")
                     }
                 }.onFailure { e ->
                     statusText.text = "Connection failed: ${e.message}"
+                    if (!isPlaying) {
+                        tryStartFromCache()
+                    }
                     scheduleRetry(reason = "exception")
                 }
             }
         }
+    }
+
+    private fun savePlaylistCache(rawJson: String) {
+        val now = System.currentTimeMillis()
+        prefs.edit()
+            .putString(PREF_PLAYLIST_JSON, rawJson)
+            .putLong(PREF_PLAYLIST_SAVED_AT, now)
+            .apply()
+        lastSyncEpochMs = now
+    }
+
+    private fun loadPlaylistCache(): String? {
+        val cached = prefs.getString(PREF_PLAYLIST_JSON, null)
+        lastSyncEpochMs = prefs.getLong(PREF_PLAYLIST_SAVED_AT, 0L)
+        return cached
+    }
+
+    private fun tryStartFromCache(): Boolean {
+        val cachedJson = loadPlaylistCache() ?: return false
+        return try {
+            usingCache = true
+            statusText.text = "Offline mode: using cached playlist"
+            parseAndDisplayPlaylist(cachedJson) // reuse your existing parser
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun formatLastSync(): String {
+        if (lastSyncEpochMs <= 0L) return "never"
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+        return sdf.format(java.util.Date(lastSyncEpochMs))
     }
 
     private fun scheduleRetry(reason: String) {
