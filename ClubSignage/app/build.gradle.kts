@@ -1,7 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    id("org.jetbrains.kotlin.kapt")
 }
 
 android {
@@ -48,7 +47,6 @@ dependencies {
 
     // Glide for image loading
     implementation(libs.glide)
-    kapt(libs.glide.compiler)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
