@@ -12,8 +12,7 @@ class BootReceiver : BroadcastReceiver() {
 
         when (intent.action) {
             Intent.ACTION_BOOT_COMPLETED,
-            Intent.ACTION_MY_PACKAGE_REPLACED,
-            Intent.ACTION_PACKAGE_REPLACED -> {
+            Intent.ACTION_MY_PACKAGE_REPLACED -> {
                 try {
                     // Start the main activity after boot
                     val startIntent = Intent(context, MainActivity::class.java).apply {

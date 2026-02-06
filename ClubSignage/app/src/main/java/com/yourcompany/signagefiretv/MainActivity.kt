@@ -1,6 +1,5 @@
 package com.yourcompany.signagefiretv
 
-import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
@@ -9,9 +8,13 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.*
+import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
-import com.google.android.exoplayer2.*
+import com.google.android.exoplayer2.ExoPlayer
+import com.google.android.exoplayer2.MediaItem
+import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.source.MediaSource
 import com.google.android.exoplayer2.source.ProgressiveMediaSource
 import com.google.android.exoplayer2.upstream.DefaultDataSource
@@ -22,10 +25,11 @@ import java.net.HttpURLConnection
 import java.net.NetworkInterface
 import java.net.URL
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 import kotlin.random.Random
 
-class MainActivity : Activity() {
+class MainActivity : AppCompatActivity() {
 
     // UI Components
     private lateinit var mainContainer: ConstraintLayout
@@ -45,6 +49,10 @@ class MainActivity : Activity() {
 
     // Content management
     private var displayJob: Job? = null
+    private var connectJob: Job? = null
+    private var retryJob: Job? = null
+    private var refreshJob: Job? = null
+
     private var currentIndex = 0
     private var currentPlaylist: JSONArray? = null
     private var isPlaying = false
@@ -53,54 +61,36 @@ class MainActivity : Activity() {
     // Device info
     private var deviceId: String = ""
     private var serverIp: String = "192.168.1.143:5000"
-    private lateinit var prefs: SharedPreferences
+
+    private val prefs: SharedPreferences by lazy {
+        getSharedPreferences("signage_prefs", Context.MODE_PRIVATE)
+    }
 
     // Auto-refresh
-    private var refreshJob: Job? = null
-    private val refreshIntervalMs = 30000L // 30 seconds
-
-    data class ContentItem(
-        val id: Int,
-        val filename: String,
-        val fileType: String,
-        val displayDuration: Int,
-        val playOrder: Int,
-        val transitionType: String,
-        val transitionDuration: Float,
-        val url: String
-    )
+    private val refreshIntervalMs = 30_000L // 30 seconds
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Full screen immersive mode for Fire TV
         setupFullScreen()
-
         setContentView(R.layout.activity_main)
-
-        // Initialize preferences
-        prefs = getSharedPreferences("signage_prefs", Context.MODE_PRIVATE)
 
         initViews()
         loadSettings()
         generateDeviceId()
 
-        // Auto-connect on startup
-        connectToServer()
-
-        // Start auto-refresh
-        startAutoRefresh()
+        connectToServer(reason = "startup")
     }
 
     private fun setupFullScreen() {
         window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                        or View.SYSTEM_UI_FLAG_FULLSCREEN
-                        or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                        or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                        or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                )
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            )
 
         // Keep screen on
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -119,30 +109,23 @@ class MainActivity : Activity() {
         saveSettingsButton = findViewById(R.id.saveSettingsButton)
         testConnectionButton = findViewById(R.id.testConnectionButton)
 
-        // Setup ExoPlayer
         initializePlayer()
 
-        // Setup button listeners
         saveSettingsButton.setOnClickListener { saveSettings() }
         testConnectionButton.setOnClickListener { testConnection() }
 
-        // Hide settings initially
         settingsLayout.visibility = View.GONE
     }
 
     private fun initializePlayer() {
         exoPlayer = ExoPlayer.Builder(this).build()
         videoView.player = exoPlayer
-        videoView.useController = false // Disable default controls
+        videoView.useController = false
 
-        // Listen for playback completion
         exoPlayer?.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_ENDED) {
-                    // Video finished playing, move to next content
-                    CoroutineScope(Dispatchers.Main).launch {
-                        moveToNextContent()
-                    }
+                    lifecycleScope.launch { moveToNextContent() }
                 }
             }
         })
@@ -166,32 +149,34 @@ class MainActivity : Activity() {
             .apply()
 
         hideSettings()
-        connectToServer()
+        connectToServer(reason = "settings_saved")
 
         Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
     }
 
     private fun testConnection() {
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val testIp = serverIpInput.text.toString().trim()
+        val testIp = serverIpInput.text.toString().trim()
+        lifecycleScope.launch(Dispatchers.IO) {
+            val result = runCatching {
                 val url = URL("http://$testIp/api/system/status")
-                val connection = url.openConnection() as HttpURLConnection
-                connection.requestMethod = "GET"
-                connection.connectTimeout = 5000
-                connection.readTimeout = 5000
+                val connection = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 5_000
+                    readTimeout = 5_000
+                }
+                val code = connection.responseCode
+                connection.disconnect()
+                code
+            }
 
-                val responseCode = connection.responseCode
-
-                withContext(Dispatchers.Main) {
-                    if (responseCode == 200) {
+            withContext(Dispatchers.Main) {
+                result.onSuccess { code ->
+                    if (code == 200) {
                         Toast.makeText(this@MainActivity, "Connection successful!", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(this@MainActivity, "Server error: $responseCode", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@MainActivity, "Server error: $code", Toast.LENGTH_SHORT).show()
                     }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
+                }.onFailure { e ->
                     Toast.makeText(this@MainActivity, "Connection failed: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
@@ -199,12 +184,10 @@ class MainActivity : Activity() {
     }
 
     private fun generateDeviceId() {
-        // Try to get MAC address first, fallback to stored/generated ID
         deviceId = prefs.getString("device_id", "") ?: ""
 
         if (deviceId.isEmpty()) {
             deviceId = try {
-                // Try to get MAC address
                 val interfaces = NetworkInterface.getNetworkInterfaces()
                 var mac = ""
 
@@ -221,14 +204,12 @@ class MainActivity : Activity() {
                 if (mac.isNotEmpty()) {
                     "firetv-${mac.replace(":", "").takeLast(8)}"
                 } else {
-                    // Fallback to random ID
                     "firetv-${Random.nextInt(100000, 999999)}"
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 "firetv-${Random.nextInt(100000, 999999)}"
             }
 
-            // Save generated device ID
             prefs.edit().putString("device_id", deviceId).apply()
         }
 
@@ -240,45 +221,57 @@ class MainActivity : Activity() {
         deviceInfoText.text = "Device: $deviceId | Server: $serverIp | Time: $currentTime"
     }
 
-    private fun connectToServer() {
+    private fun connectToServer(reason: String) {
         statusText.text = "Connecting to server..."
 
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
+        // Ensure only ONE in-flight request at a time.
+        connectJob?.cancel()
+
+        connectJob = lifecycleScope.launch(Dispatchers.IO) {
+            val result = runCatching {
                 val url = URL("http://$serverIp/api/playlist/$deviceId")
-                val connection = url.openConnection() as HttpURLConnection
-                connection.requestMethod = "GET"
-                connection.connectTimeout = 10000
-                connection.readTimeout = 15000
+                val connection = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 10_000
+                    readTimeout = 15_000
+                }
 
                 val responseCode = connection.responseCode
-
-                withContext(Dispatchers.Main) {
-                    if (responseCode == 200) {
-                        val response = connection.inputStream.bufferedReader().readText()
-                        parseAndDisplayPlaylist(response)
-                    } else {
-                        statusText.text = "Server error: $responseCode"
-                        scheduleRetry()
-                    }
+                val body = if (responseCode == 200) {
+                    connection.inputStream.bufferedReader().use { it.readText() }
+                } else {
+                    connection.errorStream?.bufferedReader()?.use { it.readText() }
                 }
 
                 connection.disconnect()
 
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
+                responseCode to body
+            }
+
+            withContext(Dispatchers.Main) {
+                result.onSuccess { (code, body) ->
+                    if (code == 200 && body != null) {
+                        parseAndDisplayPlaylist(body)
+                    } else {
+                        statusText.text = "Server error: $code"
+                        scheduleRetry(reason = "server_error_$code")
+                    }
+                }.onFailure { e ->
                     statusText.text = "Connection failed: ${e.message}"
-                    scheduleRetry()
+                    scheduleRetry(reason = "exception")
                 }
             }
         }
     }
 
-    private fun scheduleRetry() {
-        // Retry connection in 30 seconds
-        CoroutineScope(Dispatchers.Main).launch {
-            delay(30000)
-            connectToServer()
+    private fun scheduleRetry(reason: String) {
+        // Ensure only ONE retry timer exists.
+        retryJob?.cancel()
+        retryJob = lifecycleScope.launch {
+            delay(30_000)
+            if (!settingsVisible) {
+                connectToServer(reason = "retry_$reason")
+            }
         }
     }
 
@@ -297,43 +290,42 @@ class MainActivity : Activity() {
 
             statusText.text = "Content loaded: ${playlistArray.length()} items"
 
-            // Start content playback
             currentIndex = 0
             startContentPlayback()
 
         } catch (e: Exception) {
             statusText.text = "Error parsing playlist: ${e.message}"
-            scheduleRetry()
+            scheduleRetry(reason = "parse")
         }
     }
 
     private fun startContentPlayback() {
-        if (currentPlaylist == null || currentPlaylist!!.length() == 0) return
+        val playlist = currentPlaylist
+        if (playlist == null || playlist.length() == 0) return
 
         stopPlayback()
         isPlaying = true
 
-        displayJob = CoroutineScope(Dispatchers.Main).launch {
+        displayJob = lifecycleScope.launch {
             while (isActive && isPlaying) {
-                val currentItem = currentPlaylist!!.getJSONObject(currentIndex)
+                val currentItem = playlist.getJSONObject(currentIndex)
 
                 displayContent(currentItem)
 
-                // For images, wait for display duration + transition
-                if (currentItem.getString("file_type") == "image") {
-                    val duration = currentItem.getInt("display_duration")
+                if (currentItem.optString("file_type") == "image") {
+                    val duration = currentItem.optInt("display_duration", 10).coerceAtLeast(1)
                     delay(duration * 1000L)
 
-                    // Apply transition and move to next
-                    if (currentPlaylist!!.length() > 1) {
-                        val nextIndex = (currentIndex + 1) % currentPlaylist!!.length()
-                        val nextItem = currentPlaylist!!.getJSONObject(nextIndex)
+                    if (!isActive || !isPlaying) break
+
+                    if (playlist.length() > 1) {
+                        val nextIndex = (currentIndex + 1) % playlist.length()
+                        val nextItem = playlist.getJSONObject(nextIndex)
                         applyTransition(nextItem)
                         currentIndex = nextIndex
                     }
                 } else {
-                    // For videos, ExoPlayer listener handles moving to next content
-                    // Just wait here to prevent immediate loop
+                    // For videos, the ExoPlayer listener moves to next item.
                     delay(1000)
                 }
             }
@@ -341,10 +333,10 @@ class MainActivity : Activity() {
     }
 
     private fun displayContent(contentItem: JSONObject) {
-        val filename = contentItem.getString("filename")
-        val fileType = contentItem.getString("file_type")
-        val duration = contentItem.getInt("display_duration")
-        val url = contentItem.getString("url")
+        val filename = contentItem.optString("filename", "unknown")
+        val fileType = contentItem.optString("file_type", "image")
+        val duration = contentItem.optInt("display_duration", 10)
+        val url = contentItem.optString("url", "")
 
         contentInfoText.text = """
             Playing: $filename (${currentIndex + 1}/${currentPlaylist?.length() ?: 1})
@@ -352,19 +344,27 @@ class MainActivity : Activity() {
         """.trimIndent()
 
         if (fileType == "image") {
-            // Show image, hide video
             imageView.visibility = View.VISIBLE
             videoView.visibility = View.GONE
 
-            Glide.with(this)
-                .load(url)
-                .into(imageView)
+            if (url.isBlank()) {
+                statusText.text = "Missing image URL for $filename"
+            } else {
+                Glide.with(this).load(url).into(imageView)
+            }
         } else {
-            // Show video, hide image
             imageView.visibility = View.GONE
             videoView.visibility = View.VISIBLE
 
-            playVideo(url)
+            if (url.isBlank()) {
+                statusText.text = "Missing video URL for $filename"
+                lifecycleScope.launch {
+                    delay(1500)
+                    moveToNextContent()
+                }
+            } else {
+                playVideo(url)
+            }
         }
 
         updateDeviceInfo()
@@ -377,14 +377,17 @@ class MainActivity : Activity() {
             val mediaSource: MediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
                 .createMediaSource(MediaItem.fromUri(uri))
 
-            exoPlayer?.setMediaSource(mediaSource)
-            exoPlayer?.prepare()
-            exoPlayer?.play()
+            exoPlayer?.apply {
+                stop()
+                clearMediaItems()
+                setMediaSource(mediaSource)
+                prepare()
+                playWhenReady = true
+            }
 
         } catch (e: Exception) {
             statusText.text = "Video playback error: ${e.message}"
-            // Skip to next content on video error
-            CoroutineScope(Dispatchers.Main).launch {
+            lifecycleScope.launch {
                 delay(2000)
                 moveToNextContent()
             }
@@ -392,9 +395,10 @@ class MainActivity : Activity() {
     }
 
     private fun moveToNextContent() {
-        if (currentPlaylist != null && currentPlaylist!!.length() > 1) {
-            currentIndex = (currentIndex + 1) % currentPlaylist!!.length()
-            val nextItem = currentPlaylist!!.getJSONObject(currentIndex)
+        val playlist = currentPlaylist
+        if (playlist != null && playlist.length() > 1) {
+            currentIndex = (currentIndex + 1) % playlist.length()
+            val nextItem = playlist.getJSONObject(currentIndex)
             displayContent(nextItem)
         }
     }
@@ -412,9 +416,9 @@ class MainActivity : Activity() {
 
                 delay((transitionDuration * 500).toLong())
 
-                if (nextItem.getString("file_type") == "image") {
+                if (nextItem.optString("file_type") == "image") {
                     Glide.with(this@MainActivity)
-                        .load(nextItem.getString("url"))
+                        .load(nextItem.optString("url"))
                         .into(imageView)
                 }
 
@@ -432,9 +436,9 @@ class MainActivity : Activity() {
 
                 delay((transitionDuration * 1000).toLong())
 
-                if (nextItem.getString("file_type") == "image") {
+                if (nextItem.optString("file_type") == "image") {
                     Glide.with(this@MainActivity)
-                        .load(nextItem.getString("url"))
+                        .load(nextItem.optString("url"))
                         .into(imageView)
                 }
 
@@ -453,9 +457,9 @@ class MainActivity : Activity() {
 
                 delay((transitionDuration * 1000).toLong())
 
-                if (nextItem.getString("file_type") == "image") {
+                if (nextItem.optString("file_type") == "image") {
                     Glide.with(this@MainActivity)
-                        .load(nextItem.getString("url"))
+                        .load(nextItem.optString("url"))
                         .into(imageView)
                 }
 
@@ -474,9 +478,9 @@ class MainActivity : Activity() {
 
                 delay((transitionDuration * 1000).toLong())
 
-                if (nextItem.getString("file_type") == "image") {
+                if (nextItem.optString("file_type") == "image") {
                     Glide.with(this@MainActivity)
-                        .load(nextItem.getString("url"))
+                        .load(nextItem.optString("url"))
                         .into(imageView)
                 }
 
@@ -495,9 +499,9 @@ class MainActivity : Activity() {
 
                 delay((transitionDuration * 1000).toLong())
 
-                if (nextItem.getString("file_type") == "image") {
+                if (nextItem.optString("file_type") == "image") {
                     Glide.with(this@MainActivity)
-                        .load(nextItem.getString("url"))
+                        .load(nextItem.optString("url"))
                         .into(imageView)
                 }
 
@@ -518,9 +522,9 @@ class MainActivity : Activity() {
 
                 delay((transitionDuration * 1000).toLong())
 
-                if (nextItem.getString("file_type") == "image") {
+                if (nextItem.optString("file_type") == "image") {
                     Glide.with(this@MainActivity)
-                        .load(nextItem.getString("url"))
+                        .load(nextItem.optString("url"))
                         .into(imageView)
                 }
 
@@ -545,9 +549,9 @@ class MainActivity : Activity() {
 
                 delay((transitionDuration * 1000).toLong())
 
-                if (nextItem.getString("file_type") == "image") {
+                if (nextItem.optString("file_type") == "image") {
                     Glide.with(this@MainActivity)
-                        .load(nextItem.getString("url"))
+                        .load(nextItem.optString("url"))
                         .into(imageView)
                 }
 
@@ -563,23 +567,10 @@ class MainActivity : Activity() {
             }
 
             else -> {
-                // No transition - just switch immediately
-                if (nextItem.getString("file_type") == "image") {
+                if (nextItem.optString("file_type") == "image") {
                     Glide.with(this@MainActivity)
-                        .load(nextItem.getString("url"))
+                        .load(nextItem.optString("url"))
                         .into(imageView)
-                }
-            }
-        }
-    }
-
-    private fun startAutoRefresh() {
-        refreshJob = CoroutineScope(Dispatchers.IO).launch {
-            while (isActive) {
-                delay(refreshIntervalMs)
-                if (isPlaying) {
-                    // Check for content updates
-                    connectToServer()
                 }
             }
         }
@@ -588,6 +579,7 @@ class MainActivity : Activity() {
     private fun stopPlayback() {
         isPlaying = false
         displayJob?.cancel()
+        displayJob = null
         exoPlayer?.stop()
     }
 
@@ -605,18 +597,14 @@ class MainActivity : Activity() {
         }
     }
 
-    // Remote control key handling
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         return when (keyCode) {
             KeyEvent.KEYCODE_MENU,
             KeyEvent.KEYCODE_DPAD_CENTER -> {
-                if (settingsVisible) {
-                    hideSettings()
-                } else {
-                    showSettings()
-                }
+                if (settingsVisible) hideSettings() else showSettings()
                 true
             }
+
             KeyEvent.KEYCODE_BACK -> {
                 if (settingsVisible) {
                     hideSettings()
@@ -625,43 +613,64 @@ class MainActivity : Activity() {
                     super.onKeyDown(keyCode, event)
                 }
             }
+
             KeyEvent.KEYCODE_DPAD_LEFT -> {
-                if (!settingsVisible && currentPlaylist != null && currentPlaylist!!.length() > 1) {
-                    currentIndex = if (currentIndex > 0) currentIndex - 1 else currentPlaylist!!.length() - 1
-                    displayContent(currentPlaylist!!.getJSONObject(currentIndex))
+                val playlist = currentPlaylist
+                if (!settingsVisible && playlist != null && playlist.length() > 1) {
+                    currentIndex = if (currentIndex > 0) currentIndex - 1 else playlist.length() - 1
+                    displayContent(playlist.getJSONObject(currentIndex))
                 }
                 true
             }
+
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (!settingsVisible && currentPlaylist != null && currentPlaylist!!.length() > 1) {
-                    currentIndex = (currentIndex + 1) % currentPlaylist!!.length()
-                    displayContent(currentPlaylist!!.getJSONObject(currentIndex))
+                val playlist = currentPlaylist
+                if (!settingsVisible && playlist != null && playlist.length() > 1) {
+                    currentIndex = (currentIndex + 1) % playlist.length()
+                    displayContent(playlist.getJSONObject(currentIndex))
                 }
                 true
             }
+
             else -> super.onKeyDown(keyCode, event)
         }
     }
 
-    override fun onResume() {
-        super.onResume()
+    override fun onStart() {
+        super.onStart()
         setupFullScreen()
+
+        // Ensure only ONE refresh loop exists.
+        refreshJob?.cancel()
+        refreshJob = lifecycleScope.launch {
+            while (isActive) {
+                delay(refreshIntervalMs)
+                if (!settingsVisible && isPlaying) {
+                    connectToServer(reason = "auto_refresh")
+                }
+            }
+        }
+
         if (!settingsVisible && currentPlaylist != null && currentPlaylist!!.length() > 0) {
             startContentPlayback()
         }
-        startAutoRefresh()
     }
 
-    override fun onPause() {
-        super.onPause()
+    override fun onStop() {
+        super.onStop()
         stopPlayback()
         refreshJob?.cancel()
+        refreshJob = null
+        retryJob?.cancel()
+        retryJob = null
+        connectJob?.cancel()
+        connectJob = null
     }
 
     override fun onDestroy() {
         super.onDestroy()
         stopPlayback()
-        refreshJob?.cancel()
         exoPlayer?.release()
+        exoPlayer = null
     }
 }
