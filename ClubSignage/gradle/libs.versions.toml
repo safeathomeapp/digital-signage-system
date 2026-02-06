@@ -1,7 +1,6 @@
 [versions]
 agp = "8.13.2"
 kotlin = "2.0.21"
-coreKtx = "1.17.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
 espressoCore = "3.7.0"
@@ -12,6 +11,8 @@ lifecycle = "2.8.7"
 coroutines = "1.9.0"
 exoplayer = "2.19.1"
 glide = "4.16.0"
+
+# IMPORTANT: compileSdk 34 compatible core
 androidxCore = "1.12.0"
 
 [libraries]
