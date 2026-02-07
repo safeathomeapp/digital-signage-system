@@ -258,12 +258,13 @@ class MainActivity : AppCompatActivity() {
 
             } catch (e: Exception) {
                 Log.e(TAG, "registerDevice failed", e)
-                withContext(Dispatchers.Main) {
-                    statusText.text = "Registration failed: ${e.javaClass.simpleName}"
-                    scheduleRetry()
+                    withContext(Dispatchers.Main) {
+                        statusText.text = "Registration failed: ${e.javaClass.simpleName}"
+                        showSettings(true)
+                        scheduleRetry()
+                    }
                 }
             }
-        }
     }
 
     private fun connectToServer() {
@@ -310,6 +311,7 @@ class MainActivity : AppCompatActivity() {
                         // If token invalid/expired or device not approved, force re-register flow
                         clearDeviceToken()
                         statusText.text = "Re-auth required ($code)"
+                        showSettings(true)
                         ensureRegistered()
                     }
                 }
@@ -317,6 +319,7 @@ class MainActivity : AppCompatActivity() {
                 Log.e(TAG, "connectToServer failed", e)
                 withContext(Dispatchers.Main) {
                     statusText.text = "Offline – retrying"
+                    showSettings(true)
                     scheduleRetry()
                 }
             }

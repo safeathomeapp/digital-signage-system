@@ -157,27 +157,31 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
-            <Button
-                android:id="@+id/testConnectionButton"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                android:background="#FF6600"
-                android:text="Test Connection"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp" />
+        <Button
+            android:id="@+id/testConnectionButton"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/tv_button"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:text="Test Connection"
+            android:textColor="@color/tv_button_text"
+            android:textSize="12sp" />
 
-            <Button
-                android:id="@+id/saveSettingsButton"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:background="#4CAF50"
-                android:text="Save &amp; Connect"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp" />
+        <Button
+            android:id="@+id/saveSettingsButton"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/tv_button_primary"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:text="Save &amp; Connect"
+            android:textColor="@color/tv_button_text_primary"
+            android:textSize="12sp" />
 
         </LinearLayout>
 
