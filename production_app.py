@@ -961,7 +961,7 @@ def update_device(device_id):
         return jsonify({'error': 'Failed to update device'}), 500
         
 # Android API - Device-specific playlists
-@@app.route('/api/register', methods=['POST'])
+@app.route('/api/register', methods=['POST'])
 def register_device():
     """One-time device registration to obtain a per-device token."""
     data = request.get_json(silent=True) or {}
@@ -1023,7 +1023,7 @@ def register_device():
 
     token = _get_or_create_device_token(device_id)
     return jsonify({'device_id': device_id, 'token': token}), 200
-@@app.route('/api/playlist/<device_id>')
+@app.route('/api/playlist/<device_id>')
 @require_device_auth
 def get_playlist(device_id):
     try:
