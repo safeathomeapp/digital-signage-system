@@ -14,6 +14,7 @@ import time
 import secrets
 import hmac
 import threading
+import hashlib
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-change-this-in-production'
@@ -27,6 +28,37 @@ def get_db_connection():
     conn = sqlite3.connect('signage.db')
     conn.row_factory = sqlite3.Row
     return conn
+
+def _get_setting(key: str, default: str | None = None) -> str | None:
+    try:
+        conn = get_db_connection()
+        row = conn.execute('SELECT value FROM system_settings WHERE key = ?', (key,)).fetchone()
+        conn.close()
+        return row['value'] if row else default
+    except Exception:
+        logging.exception("Failed to read system setting")
+        return default
+
+def _set_setting(key: str, value: str) -> None:
+    try:
+        conn = get_db_connection()
+        conn.execute('INSERT INTO system_settings (key, value) VALUES (?, ?) '
+                     'ON CONFLICT(key) DO UPDATE SET value=excluded.value', (key, value))
+        conn.commit()
+        conn.close()
+    except Exception:
+        logging.exception("Failed to write system setting")
+
+def _hash_pin(pin: str) -> str:
+    return hashlib.sha256(pin.encode('utf-8')).hexdigest()
+
+def _ensure_default_pin():
+    env_pin = os.environ.get('SIGNAGE_ADMIN_PIN')
+    if env_pin:
+        _set_setting('admin_pin_hash', _hash_pin(env_pin))
+        return
+    if not _get_setting('admin_pin_hash'):
+        _set_setting('admin_pin_hash', _hash_pin('1234'))
 
 
 def _load_token_store():
@@ -203,7 +235,42 @@ def init_db():
             is_active BOOLEAN DEFAULT 1,
             ip_address TEXT,
             app_version TEXT DEFAULT "1.0",
+            overlay_enabled BOOLEAN DEFAULT 1,
+            overlay_position TEXT DEFAULT "top-right",
+            overlay_opacity REAL DEFAULT 0.6,
+            overlay_size REAL DEFAULT 0.1,
+            overlay_hide_on_video BOOLEAN DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # Add overlay columns if missing
+    try:
+        conn.execute('ALTER TABLE devices ADD COLUMN overlay_enabled BOOLEAN DEFAULT 1')
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute('ALTER TABLE devices ADD COLUMN overlay_position TEXT DEFAULT "top-right"')
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute('ALTER TABLE devices ADD COLUMN overlay_opacity REAL DEFAULT 0.6')
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute('ALTER TABLE devices ADD COLUMN overlay_size REAL DEFAULT 0.1')
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute('ALTER TABLE devices ADD COLUMN overlay_hide_on_video BOOLEAN DEFAULT 1')
+    except sqlite3.OperationalError:
+        pass
+
+    # System settings (global configuration)
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
         )
     ''')
     
@@ -547,6 +614,8 @@ def get_devices():
         cursor = conn.execute('''
             SELECT d.device_id, d.device_name, d.custom_name, d.location, d.last_checkin,
                    d.is_active, d.ip_address, d.app_version, d.created_at,
+                   d.overlay_enabled, d.overlay_position, d.overlay_opacity, d.overlay_size,
+                   d.overlay_hide_on_video,
                    COUNT(dc.id) as content_count
             FROM devices d
             LEFT JOIN device_content dc ON d.device_id = dc.device_id
@@ -560,20 +629,25 @@ def get_devices():
         token_store = _load_token_store()
         devices = []
         for row in cursor.fetchall():
-            devices.append({
-                'device_id': row['device_id'],
-                'token_registered': bool(token_store.get(row['device_id'], {}).get('token')),
-                'device_name': row['device_name'],
-                'custom_name': row['custom_name'],
-                'location': row['location'],
-                'last_checkin': row['last_checkin'],
-                'is_active': bool(row['is_active']),
-                'ip_address': row['ip_address'],
-                'app_version': row['app_version'],
-                'created_at': row['created_at'],
-                'content_count': row['content_count'],
-                'display_name': row['custom_name'] if row['custom_name'] else row['device_name']
-            })
+                devices.append({
+                    'device_id': row['device_id'],
+                    'token_registered': bool(token_store.get(row['device_id'], {}).get('token')),
+                    'device_name': row['device_name'],
+                    'custom_name': row['custom_name'],
+                    'location': row['location'],
+                    'last_checkin': row['last_checkin'],
+                    'is_active': bool(row['is_active']),
+                    'ip_address': row['ip_address'],
+                    'app_version': row['app_version'],
+                    'created_at': row['created_at'],
+                    'overlay_enabled': bool(row['overlay_enabled']) if row['overlay_enabled'] is not None else True,
+                    'overlay_position': row['overlay_position'] or 'top-right',
+                    'overlay_opacity': float(row['overlay_opacity']) if row['overlay_opacity'] is not None else 0.6,
+                    'overlay_size': float(row['overlay_size']) if row['overlay_size'] is not None else 0.1,
+                    'overlay_hide_on_video': bool(row['overlay_hide_on_video']) if row['overlay_hide_on_video'] is not None else True,
+                    'content_count': row['content_count'],
+                    'display_name': row['custom_name'] if row['custom_name'] else row['device_name']
+                })
 
         conn.close()
         return jsonify(devices)
@@ -959,6 +1033,46 @@ def update_device(device_id):
     except Exception as e:
         logger.error(f"Error updating device: {e}")
         return jsonify({'error': 'Failed to update device'}), 500
+
+# Update device overlay settings
+@app.route('/api/device/<device_id>/overlay', methods=['PUT'])
+def update_device_overlay(device_id):
+    try:
+        data = request.get_json() or {}
+        overlay_enabled = bool(data.get('overlay_enabled', True))
+        overlay_position = (data.get('overlay_position') or 'top-right').strip().lower()
+        overlay_opacity = float(data.get('overlay_opacity', 0.6))
+        overlay_size = float(data.get('overlay_size', 0.1))
+        overlay_hide_on_video = bool(data.get('overlay_hide_on_video', True))
+
+        allowed_positions = {'top-left', 'top-right', 'bottom-left', 'bottom-right'}
+        if overlay_position not in allowed_positions:
+            return jsonify({'error': 'Invalid overlay_position'}), 400
+
+        overlay_opacity = max(0.0, min(1.0, overlay_opacity))
+        overlay_size = max(0.05, min(0.3, overlay_size))
+
+        conn = sqlite3.connect('signage.db')
+        conn.execute('''
+            UPDATE devices
+            SET overlay_enabled = ?, overlay_position = ?, overlay_opacity = ?,
+                overlay_size = ?, overlay_hide_on_video = ?
+            WHERE device_id = ?
+        ''', (
+            1 if overlay_enabled else 0,
+            overlay_position,
+            overlay_opacity,
+            overlay_size,
+            1 if overlay_hide_on_video else 0,
+            device_id
+        ))
+        conn.commit()
+        conn.close()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error updating overlay settings: {e}")
+        return jsonify({'error': 'Failed to update overlay settings'}), 500
         
 # Android API - Device-specific playlists
 @app.route('/api/register', methods=['POST'])
@@ -1121,6 +1235,25 @@ def get_playlist(device_id):
                     'url': f'http://{SERVER_IP}:5000/uploads/{filename}'
                 })
 
+        device_overlay = conn.execute('''
+            SELECT overlay_enabled, overlay_position, overlay_opacity,
+                   overlay_size, overlay_hide_on_video
+            FROM devices WHERE device_id = ?
+        ''', (device_id,)).fetchone()
+
+        logo_filename = _get_setting('overlay_logo_filename', '') or ''
+        overlay_url = f'http://{SERVER_IP}:5000/uploads/{logo_filename}' if logo_filename else ''
+
+        overlay_enabled = bool(device_overlay['overlay_enabled']) if device_overlay else True
+        overlay_payload = {
+            'enabled': overlay_enabled and bool(overlay_url),
+            'position': (device_overlay['overlay_position'] if device_overlay else 'top-right') or 'top-right',
+            'opacity': float(device_overlay['overlay_opacity']) if device_overlay and device_overlay['overlay_opacity'] is not None else 0.6,
+            'size': float(device_overlay['overlay_size']) if device_overlay and device_overlay['overlay_size'] is not None else 0.1,
+            'hide_on_video': bool(device_overlay['overlay_hide_on_video']) if device_overlay else True,
+            'url': overlay_url
+        }
+
         conn.close()
 
         # IMPORTANT: return a raw JSON array to match Android JSONArray(responseText)
@@ -1128,7 +1261,8 @@ def get_playlist(device_id):
             'device_id': device_id,
             'server_ip': SERVER_IP,
             'updated_at': now.isoformat(),
-            'playlist': playlist
+            'playlist': playlist,
+            'overlay': overlay_payload
         }), 200
 
     except Exception as e:
@@ -1159,6 +1293,76 @@ def get_last_update():
         logger.error(f"Error getting last update: {e}")
         return jsonify({'error': 'Failed to get update timestamp'}), 500
         
+# System settings (global)
+@app.route('/api/system/settings')
+def get_system_settings():
+    try:
+        logo_filename = _get_setting('overlay_logo_filename', '')
+        logo_url = f'http://{SERVER_IP}:5000/uploads/{logo_filename}' if logo_filename else ''
+        pin_set = bool(_get_setting('admin_pin_hash'))
+        return jsonify({
+            'overlay_logo_filename': logo_filename,
+            'overlay_logo_url': logo_url,
+            'pin_set': pin_set
+        })
+    except Exception as e:
+        logger.error(f"System settings error: {e}")
+        return jsonify({'error': 'Failed to get system settings'}), 500
+
+@app.route('/api/system/pin', methods=['PUT'])
+def set_system_pin():
+    try:
+        data = request.get_json() or {}
+        pin = (data.get('pin') or '').strip()
+        if len(pin) < 4:
+            return jsonify({'error': 'PIN must be at least 4 digits'}), 400
+        _set_setting('admin_pin_hash', _hash_pin(pin))
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"PIN update error: {e}")
+        return jsonify({'error': 'Failed to update PIN'}), 500
+
+@app.route('/api/system/pin/verify', methods=['POST'])
+def verify_system_pin():
+    try:
+        data = request.get_json() or {}
+        pin = (data.get('pin') or '').strip()
+        stored = _get_setting('admin_pin_hash', '')
+        if not stored:
+            return jsonify({'valid': False}), 200
+        return jsonify({'valid': hmac.compare_digest(stored, _hash_pin(pin))}), 200
+    except Exception as e:
+        logger.error(f"PIN verify error: {e}")
+        return jsonify({'valid': False}), 200
+
+# Overlay logo upload
+@app.route('/api/system/overlay-logo', methods=['POST'])
+def upload_overlay_logo():
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file selected'}), 400
+
+        file = request.files['file']
+        if file.filename == '' or not allowed_file(file.filename):
+            return jsonify({'error': 'Invalid file type'}), 400
+
+        filename = secure_filename(file.filename)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+        unique_filename = f"overlay_logo_{timestamp}{filename}"
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        file.save(file_path)
+
+        _set_setting('overlay_logo_filename', unique_filename)
+
+        return jsonify({
+            'success': True,
+            'filename': unique_filename,
+            'url': f'http://{SERVER_IP}:5000/uploads/{unique_filename}'
+        })
+    except Exception as e:
+        logger.error(f"Overlay logo upload error: {e}")
+        return jsonify({'error': 'Failed to upload overlay logo'}), 500
+
 # System status
 @app.route('/api/system/status')
 def system_status():
@@ -1395,6 +1599,7 @@ def update_device_transitions(device_id):
 if __name__ == '__main__':
     init_db()
     upgrade_database()
+    _ensure_default_pin()
     print(f"🚀 Digital Signage Server starting on: {SERVER_IP}:5000")
     print(f"📱 Android TVs connect to: http://{SERVER_IP}:5000")
     print(f"🌐 Upload from any PC: http://{SERVER_IP}:5000")

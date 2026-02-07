@@ -4,12 +4,16 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
+import android.app.AlertDialog
+import android.text.InputType
+import android.view.KeyEvent
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
@@ -36,6 +40,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var imageView: ImageView
     private lateinit var imageViewAlt: ImageView
     private lateinit var videoView: PlayerView
+    private lateinit var overlayLogo: ImageView
     private lateinit var settingsLayout: LinearLayout
     private lateinit var serverIpInput: EditText
     private lateinit var deviceNameInput: EditText
@@ -50,6 +55,13 @@ class MainActivity : AppCompatActivity() {
 
     private var retryJob: Job? = null
     private var playbackJob: Job? = null
+
+    private var overlayEnabled = false
+    private var overlayPosition = "top-right"
+    private var overlayOpacity = 0.6f
+    private var overlaySize = 0.1f
+    private var overlayHideOnVideo = true
+    private var overlayUrl: String? = null
 
     private val deviceId: String by lazy {
         prefs.getString(PREF_DEVICE_ID, null)
@@ -69,6 +81,7 @@ class MainActivity : AppCompatActivity() {
         imageView = findViewById(R.id.imageView)
         imageViewAlt = findViewById(R.id.imageViewAlt)
         videoView = findViewById(R.id.videoView)
+        overlayLogo = findViewById(R.id.overlayLogo)
         settingsLayout = findViewById(R.id.settingsLayout)
         serverIpInput = findViewById(R.id.serverIpInput)
         deviceNameInput = findViewById(R.id.deviceNameInput)
@@ -85,7 +98,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupSettingsUi() {
         val savedServer = prefs.getString(PREF_SERVER_URL, "") ?: ""
         if (savedServer.isNotBlank()) {
-            serverIpInput.setText(savedServer.replace("http://", "").replace("https://", ""))
+            serverIpInput.hint = "Saved"
         }
 
         val savedName = prefs.getString(PREF_DEVICE_NAME, "") ?: ""
@@ -100,7 +113,14 @@ class MainActivity : AppCompatActivity() {
         if (savedServer.isBlank()) {
             showSettings(true)
             statusText.text = "Set server address"
+        } else {
+            lockSettingsView()
         }
+    }
+
+    private fun lockSettingsView() {
+        serverIpInput.setText("")
+        serverIpInput.hint = "Saved"
     }
 
     private fun updateDeviceInfo() {
@@ -168,6 +188,7 @@ class MainActivity : AppCompatActivity() {
 
         updateDeviceInfo()
         showSettings(false)
+        lockSettingsView()
         statusText.text = "Saved. Connecting…"
         ensureRegistered()
     }
@@ -315,6 +336,16 @@ class MainActivity : AppCompatActivity() {
                     if (code == 200 && !responseText.isNullOrBlank()) {
                         currentPlaylist = try {
                             val obj = JSONObject(responseText)
+                            val overlayObj = obj.optJSONObject("overlay")
+                            if (overlayObj != null) {
+                                overlayEnabled = overlayObj.optBoolean("enabled", false)
+                                overlayPosition = overlayObj.optString("position", "top-right")
+                                overlayOpacity = overlayObj.optDouble("opacity", 0.6).toFloat()
+                                overlaySize = overlayObj.optDouble("size", 0.1).toFloat()
+                                overlayHideOnVideo = overlayObj.optBoolean("hide_on_video", true)
+                                overlayUrl = overlayObj.optString("url", "")
+                                updateOverlayAppearance()
+                            }
                             obj.getJSONArray("playlist")
                         } catch (_: Exception) {
                             // Backward compatibility if server ever returns a raw array
@@ -376,6 +407,7 @@ class MainActivity : AppCompatActivity() {
         val transitionDuration = item.optDouble("transition_duration", 1.0)
         updateContentInfo("$filename (image)")
         showImageWithTransition(url, transitionType, transitionDuration)
+        updateOverlayVisibility(isVideo = false)
     }
 
     private fun initPlayer() {
@@ -401,6 +433,7 @@ class MainActivity : AppCompatActivity() {
             prepare()
             playWhenReady = true
         }
+        updateOverlayVisibility(isVideo = true)
     }
 
     private suspend fun playVideoAndAwaitEnd(item: JSONObject) {
@@ -523,6 +556,68 @@ class MainActivity : AppCompatActivity() {
             .start()
     }
 
+    private fun updateOverlayAppearance() {
+        if (!overlayEnabled || overlayUrl.isNullOrBlank()) {
+            overlayLogo.visibility = View.GONE
+            return
+        }
+
+        overlayLogo.alpha = overlayOpacity.coerceIn(0.0f, 1.0f)
+
+        val screenWidth = resources.displayMetrics.widthPixels
+        val sizePx = (screenWidth * overlaySize.coerceIn(0.05f, 0.3f)).toInt()
+        overlayLogo.layoutParams.width = sizePx
+        overlayLogo.layoutParams.height = sizePx
+
+        val lp = overlayLogo.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+        lp.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+        lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+        lp.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+        lp.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+
+        when (overlayPosition) {
+            "top-left" -> {
+                lp.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                lp.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                lp.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+            }
+            "top-right" -> {
+                lp.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                lp.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                lp.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+            }
+            "bottom-left" -> {
+                lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                lp.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                lp.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                lp.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+            }
+            "bottom-right" -> {
+                lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                lp.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                lp.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                lp.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+            }
+        }
+
+        overlayLogo.layoutParams = lp
+        Glide.with(this).load(overlayUrl).into(overlayLogo)
+    }
+
+    private fun updateOverlayVisibility(isVideo: Boolean) {
+        if (!overlayEnabled || overlayUrl.isNullOrBlank()) {
+            overlayLogo.visibility = View.GONE
+            return
+        }
+        if (isVideo && overlayHideOnVideo) {
+            overlayLogo.visibility = View.GONE
+            return
+        }
+        overlayLogo.visibility = View.VISIBLE
+    }
+
     private fun getDisplayDurationMs(item: JSONObject): Long {
         val seconds = try {
             item.optInt("display_duration", 10)
@@ -546,6 +641,89 @@ class MainActivity : AppCompatActivity() {
         playbackJob?.cancel()
         player?.release()
         player = null
+    }
+
+    override fun onKeyLongPress(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+            promptForPin()
+            return true
+        }
+        return super.onKeyLongPress(keyCode, event)
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK && settingsLayout.visibility == View.VISIBLE) {
+            showSettings(false)
+            lockSettingsView()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    private fun promptForPin() {
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Enter PIN")
+            .setView(input)
+            .setPositiveButton("OK") { _, _ ->
+                val pin = input.text?.toString()?.trim().orEmpty()
+                verifyPin(pin)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun verifyPin(pin: String) {
+        val serverBaseUrl = getServerBaseUrl()
+        if (serverBaseUrl.isBlank()) {
+            showSettings(true)
+            statusText.text = "Set server address"
+            return
+        }
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val url = URL("$serverBaseUrl/api/system/pin/verify")
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    setRequestProperty("Content-Type", "application/json")
+                    connectTimeout = 5_000
+                    readTimeout = 5_000
+                    doOutput = true
+                }
+                val body = """{"pin":"$pin"}"""
+                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                val code = conn.responseCode
+                val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                val responseText = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                conn.disconnect()
+
+                val isValid = try {
+                    JSONObject(responseText).optBoolean("valid", false)
+                } catch (_: Exception) {
+                    false
+                }
+
+                withContext(Dispatchers.Main) {
+                    if (isValid) {
+                        val savedServer = prefs.getString(PREF_SERVER_URL, "") ?: ""
+                        if (savedServer.isNotBlank()) {
+                            serverIpInput.setText(savedServer.replace("http://", "").replace("https://", ""))
+                        }
+                        showSettings(true)
+                    } else {
+                        Toast.makeText(this@MainActivity, "Invalid PIN", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "PIN check failed", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     companion object {

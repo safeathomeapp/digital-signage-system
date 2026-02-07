@@ -45,6 +45,7 @@ Key technical choices:
 3. Glide for image loading
 4. SharedPreferences for persistent storage
 5. Media3 (ExoPlayer) for video playback
+6. PIN-gated settings menu (long-press MENU/CENTER)
 
 Data it persists:
 1. `device_id` (generated and stored locally)
@@ -228,6 +229,7 @@ Current behavior:
 1. Index page lists devices and uploads.
 2. Pending devices show a badge and “Approve” button.
 3. Media can be uploaded with schedule metadata.
+4. Overlay & PIN modal manages global logo and admin PIN.
 
 ---
 
@@ -273,6 +275,7 @@ Scheduling:
 Playback:
 1. Per-playlist transitions (fade/slide/zoom)
 2. Local caching and offline playback
+3. Overlay logo (per-device position/opacity/size, optional hide on video)
 
 Admin UI:
 1. Bulk upload
@@ -308,6 +311,7 @@ Monitoring:
 3. Don’t “improve” playlist format without updating Android client.
 4. If you change schema, update both code and test on fresh DB.
 5. Active development branch: `dev` (merge to `main` for releases).
+6. Default admin PIN is `1234` unless `SIGNAGE_ADMIN_PIN` is set in environment.
 
 ---
 
@@ -414,11 +418,16 @@ Media and assignment:
 Devices:
 1. `PUT /api/device/<device_id>` updates custom name and location
 2. `DELETE /api/device/<device_id>` deletes device and assignments
+3. `PUT /api/device/<device_id>/overlay` updates per-device logo settings
 
 System:
 1. `GET /api/system/status` returns server stats and storage use
 2. `GET /api/system/last-update` returns last content update timestamp
 3. `POST /api/system/cleanup` removes orphaned DB rows
+4. `GET /api/system/settings` returns overlay logo info and pin status
+5. `PUT /api/system/pin` sets admin PIN
+6. `POST /api/system/pin/verify` verifies admin PIN
+7. `POST /api/system/overlay-logo` uploads global overlay logo
 
 File serving:
 1. `GET /uploads/<filename>` serves uploaded files
@@ -513,6 +522,7 @@ Playlist and scheduling behavior:
 4. Overnight windows are not supported without code changes.
 5. Missing or invalid `days_of_week` defaults to `['all']`.
 6. Transition types supported by client: `none`, `fade`, `slide-left`, `slide-right`, `slide-up`, `slide-down`, `zoom-in`, `zoom-out`.
+7. Overlay config is delivered at top-level in playlist response under `overlay`.
 
 Error handling expectations:
 1. `401` means missing headers or token.

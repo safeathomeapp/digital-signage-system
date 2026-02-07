@@ -709,6 +709,9 @@
                                 <button class="btn btn-dark btn-sm" data-bs-toggle="modal" data-bs-target="#manageDevicesModal" title="Manage Devices">
                                     <i class="fas fa-cog"></i>
                                 </button>
+                                <button class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#overlaySettingsModal" title="Overlay &amp; PIN Settings">
+                                    <i class="fas fa-layer-group"></i>
+                                </button>
                                 <h5 class="mb-0">
                                     <i class="fas fa-desktop me-2"></i>Device Content
                                 </h5>
@@ -822,6 +825,80 @@
                         <div class="text-center">
                             <div class="spinner-border" role="status"></div>
                             <p class="mt-2">Loading devices...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlay & PIN Settings Modal -->
+    <div class="modal fade" id="overlaySettingsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-layer-group me-2"></i>Overlay &amp; PIN Settings
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6>Global Overlay Logo</h6>
+                            <div class="mb-2">
+                                <img id="overlayLogoPreview" src="" alt="Overlay logo" style="max-width: 160px; max-height: 160px; display:none; border:1px solid #ddd; padding:6px; border-radius:6px;">
+                            </div>
+                            <input type="file" class="form-control form-control-sm mb-2" id="overlayLogoFile" accept="image/*">
+                            <button class="btn btn-sm btn-primary" onclick="uploadOverlayLogo()">Upload Logo</button>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Admin PIN</h6>
+                            <input type="password" class="form-control form-control-sm mb-2" id="adminPinInput" placeholder="Enter new PIN">
+                            <button class="btn btn-sm btn-secondary" onclick="saveAdminPin()">Save PIN</button>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <h6>Per-Device Overlay Settings</h6>
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label small">Device</label>
+                            <select class="form-select form-select-sm" id="overlayDeviceSelect" onchange="loadSelectedDeviceOverlay()"></select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Position</label>
+                            <select class="form-select form-select-sm" id="overlayPosition">
+                                <option value="top-left">Top Left</option>
+                                <option value="top-right">Top Right</option>
+                                <option value="bottom-left">Bottom Left</option>
+                                <option value="bottom-right">Bottom Right</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Opacity (0–100)</label>
+                            <input type="number" class="form-control form-control-sm" id="overlayOpacity" min="0" max="100" value="60">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Size % of width (5–30)</label>
+                            <input type="number" class="form-control form-control-sm" id="overlaySize" min="5" max="30" value="10">
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" id="overlayEnabled" checked>
+                                <label class="form-check-label" for="overlayEnabled">Enabled</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="overlayHideOnVideo" checked>
+                                <label class="form-check-label" for="overlayHideOnVideo">Hide on videos</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-sm btn-success mt-4" onclick="saveDeviceOverlay()">Save Device Settings</button>
                         </div>
                     </div>
                 </div>
@@ -2199,6 +2276,132 @@
         document.getElementById('manageDevicesModal').addEventListener('shown.bs.modal', function() {
             loadDeviceManagement();
         });
+
+        document.getElementById('overlaySettingsModal').addEventListener('shown.bs.modal', function() {
+            loadOverlaySettings();
+        });
+
+        async function loadOverlaySettings() {
+            try {
+                const settingsResp = await fetch('/api/system/settings');
+                const settings = await settingsResp.json();
+
+                const preview = document.getElementById('overlayLogoPreview');
+                if (settings.overlay_logo_url) {
+                    preview.src = settings.overlay_logo_url;
+                    preview.style.display = 'inline-block';
+                } else {
+                    preview.style.display = 'none';
+                }
+
+                const deviceSelect = document.getElementById('overlayDeviceSelect');
+                deviceSelect.innerHTML = currentDevices.map(d =>
+                    `<option value="${d.device_id}">${d.display_name || d.device_name}</option>`
+                ).join('');
+
+                loadSelectedDeviceOverlay();
+            } catch (e) {
+                console.error('Overlay settings load error:', e);
+            }
+        }
+
+        function loadSelectedDeviceOverlay() {
+            const deviceId = document.getElementById('overlayDeviceSelect').value;
+            const device = currentDevices.find(d => d.device_id === deviceId);
+            if (!device) return;
+
+            document.getElementById('overlayPosition').value = device.overlay_position || 'top-right';
+            document.getElementById('overlayOpacity').value = Math.round((device.overlay_opacity ?? 0.6) * 100);
+            document.getElementById('overlaySize').value = Math.round((device.overlay_size ?? 0.1) * 100);
+            document.getElementById('overlayEnabled').checked = device.overlay_enabled ?? true;
+            document.getElementById('overlayHideOnVideo').checked = device.overlay_hide_on_video ?? true;
+        }
+
+        async function uploadOverlayLogo() {
+            const fileInput = document.getElementById('overlayLogoFile');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('Select a logo image first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const resp = await fetch('/api/system/overlay-logo', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await resp.json();
+                if (resp.ok) {
+                    const preview = document.getElementById('overlayLogoPreview');
+                    preview.src = result.url;
+                    preview.style.display = 'inline-block';
+                    alert('Overlay logo uploaded');
+                } else {
+                    alert(result.error || 'Upload failed');
+                }
+            } catch (e) {
+                alert('Upload error: ' + e.message);
+            }
+        }
+
+        async function saveAdminPin() {
+            const pin = document.getElementById('adminPinInput').value.trim();
+            if (pin.length < 4) {
+                alert('PIN must be at least 4 digits');
+                return;
+            }
+            try {
+                const resp = await fetch('/api/system/pin', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin })
+                });
+                if (resp.ok) {
+                    alert('PIN updated');
+                    document.getElementById('adminPinInput').value = '';
+                } else {
+                    const result = await resp.json();
+                    alert(result.error || 'PIN update failed');
+                }
+            } catch (e) {
+                alert('PIN error: ' + e.message);
+            }
+        }
+
+        async function saveDeviceOverlay() {
+            const deviceId = document.getElementById('overlayDeviceSelect').value;
+            const overlay_position = document.getElementById('overlayPosition').value;
+            const overlay_opacity = parseFloat(document.getElementById('overlayOpacity').value) / 100;
+            const overlay_size = parseFloat(document.getElementById('overlaySize').value) / 100;
+            const overlay_enabled = document.getElementById('overlayEnabled').checked;
+            const overlay_hide_on_video = document.getElementById('overlayHideOnVideo').checked;
+
+            try {
+                const resp = await fetch(`/api/device/${deviceId}/overlay`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        overlay_enabled,
+                        overlay_position,
+                        overlay_opacity,
+                        overlay_size,
+                        overlay_hide_on_video
+                    })
+                });
+                if (resp.ok) {
+                    await loadDevices();
+                    alert('Overlay settings saved');
+                } else {
+                    const result = await resp.json();
+                    alert(result.error || 'Save failed');
+                }
+            } catch (e) {
+                alert('Save error: ' + e.message);
+            }
+        }
 
         // Content editing functions
         function editContent(assignmentId) {

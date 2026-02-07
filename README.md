@@ -140,6 +140,8 @@ The Android app must be switched **before deploying to real hardware**.
   - Image transitions: fade, slide, zoom
   - Video playback via Media3 (ExoPlayer)
   - Videos advance on playback end (not timer)
+  - PIN-gated settings menu (long-press MENU/CENTER)
+  - Overlay logo support (position/opacity/size from server)
 
 ### Server
 - `production_app.py`
@@ -152,6 +154,7 @@ The Android app must be switched **before deploying to real hardware**.
 - `templates/index.html`
   - Pending vs Active device badges
   - Approve button wired to backend
+  - Overlay & PIN settings modal
 
 ### Git
 - `.gitignore`
@@ -183,6 +186,7 @@ Everything has been validated on:
    - Playlist fetch
    - Media playback (images + video)
    - Transitions
+   - Overlay logo positioning/opacity
 4. Validate:
    - Boot auto-start
    - Offline cache fallback
@@ -219,6 +223,7 @@ These belong to **Phase 4+** only.
 - No silent failures: log everything.
 - Do not “improve” the contract without updating both sides.
 - Active development branch: `dev` (smaller fixes/features land here before merging to `main`).
+- Default admin PIN is `1234` unless `SIGNAGE_ADMIN_PIN` is set in environment.
 
 ---
 
