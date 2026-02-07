@@ -1023,9 +1023,33 @@ def register_device():
 
     token = _get_or_create_device_token(device_id)
     return jsonify({'device_id': device_id, 'token': token}), 200
+
+@app.route('/api/device/<device_id>/activate', methods=['PUT'])
+def activate_device(device_id):
+    try:
+        conn = sqlite3.connect('signage.db')
+        cur = conn.execute(
+            'UPDATE devices SET is_active = 1, last_checkin = ? WHERE device_id = ?',
+            (datetime.now(), device_id)
+        )
+        conn.commit()
+        conn.close()
+
+        if cur.rowcount == 0:
+            return jsonify({'error': 'not_found', 'detail': 'Device not found'}), 404
+
+        logger.info(f"Device {device_id} activated")
+        return jsonify({'success': True, 'device_id': device_id, 'is_active': True}), 200
+
+    except Exception as e:
+        logger.error(f"Error activating device {device_id}: {e}")
+        return jsonify({'error': 'server_error', 'detail': 'Failed to activate device'}), 500
+
+
 @app.route('/api/playlist/<device_id>')
 @require_device_auth
 def get_playlist(device_id):
+    logger.info("HIT get_playlist() production_app.py build=2026-02-07 A")
     try:
         conn = get_db_connection()
 

@@ -2071,23 +2071,53 @@
                                     </div>
                                 </div>
                                 <div class="col-md-2">
-                                    <button class="btn btn-primary btn-sm w-100 mb-2" 
-                                            onclick="saveDeviceInfo('${device.device_id}')">
-                                        <i class="fas fa-save"></i> Save
-                                    </button>
-                                    <button class="btn btn-outline-danger btn-sm w-100" 
-                                            onclick="deleteDevice('${device.device_id}', '${device.device_name}')">
-                                        <i class="fas fa-trash"></i> Delete
-                                    </button>
-                                </div>
+								  ${device.is_active ? `
+									<div class="badge bg-success w-100 mb-2">Active</div>
+								  ` : `
+									<div class="badge bg-warning text-dark w-100 mb-2">Pending</div>
+									<button class="btn btn-success btn-sm w-100 mb-2"
+											onclick="approveDevice('${device.device_id}')">
+									  <i class="fas fa-check"></i> Approve
+									</button>
+								  `}
+								  <button class="btn btn-primary btn-sm w-100 mb-2"
+										  onclick="saveDeviceInfo('${device.device_id}')">
+									<i class="fas fa-save"></i> Save
+								  </button>
+								  <button class="btn btn-outline-danger btn-sm w-100"
+										  onclick="deleteDevice('${device.device_id}', '${device.device_name}')">
+									<i class="fas fa-trash"></i> Delete
+								  </button>
+								</div>
                             </div>
                         </div>
                     </div>
                 `;
             });
-            
             container.innerHTML = html;
         }
+
+		async function approveDevice(deviceId) {
+		  try {
+			const res = await fetch(`/api/device/${deviceId}/activate`, { method: 'PUT' });
+			const data = await res.json().catch(() => ({}));
+
+			if (!res.ok) {
+			  alert(`Approve failed: ${(data && (data.detail || data.error)) || res.status}`);
+			  return;
+			}
+
+			// refresh UI
+			await loadDevices();
+			loadDeviceManagement(); // re-render modal list
+			updateSelectedDevicesInfo();
+			if (selectedDeviceIds.length > 0) loadCommonContent();
+
+			alert(`Device approved: ${deviceId}`);
+		  } catch (e) {
+			alert('Approve error: ' + e.message);
+		  }
+		}
 
         async function saveDeviceInfo(deviceId) {
             const customName = document.getElementById(`name_${deviceId}`).value.trim();

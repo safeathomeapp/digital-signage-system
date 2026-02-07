@@ -44,3 +44,7 @@ Desktop.ini
 
 # Android Studio project (separate repository)
 Android_App/
+
+# Local device tokens (do not commit)
+device_tokens.json
+

@@ -28,9 +28,9 @@ class MainActivity : AppCompatActivity() {
 
     private var retryJob: Job? = null
 
-    // Phase 3B: Use adb reverse -> emulator hits localhost, adb tunnels to host port 5000
-    // Run on host each emulator boot: adb reverse tcp:5000 tcp:5000
-    private val serverBaseUrl = "http://127.0.0.1:5000"
+    // DEV: set to your server on LAN for real devices.
+    // Emulator: http://10.0.2.2:5000
+    private val serverBaseUrl = "http://192.168.1.143:5000"
 
     private val deviceId: String by lazy {
         prefs.getString(PREF_DEVICE_ID, null)
@@ -91,16 +91,17 @@ class MainActivity : AppCompatActivity() {
                 Log.i(TAG, "registerDevice: code=$code response=$responseText")
 
                 if (code == 200) {
-                    // Server returns JSON {device_id, token}
                     val token = try {
-						JSONObject(responseText).optString("token").trim()
-					} catch (_: Exception) {
-						""
-					}
+                        val obj = JSONObject(responseText)
+                        obj.getString("token")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Invalid register response: $responseText", e)
+                        ""
+                    }
 
                     if (token.isBlank()) {
                         withContext(Dispatchers.Main) {
-                            statusText.text = "Registration failed (empty token)"
+                            statusText.text = "Registration failed (no token)"
                             scheduleRetry()
                         }
                         return@launch
@@ -113,18 +114,19 @@ class MainActivity : AppCompatActivity() {
                         connectToServer()
                     }
                 } else {
-					val msg = try {
-						val detail = JSONObject(responseText).optString("detail").trim()
-						if (detail.isNotEmpty()) detail else "Pending approval"
-					} catch (_: Exception) {
-						"Pending approval"
-					}
+                    val msg = try {
+                        val obj = JSONObject(responseText)
+                        obj.optString("detail").ifBlank { "Pending approval" }
+                    } catch (_: Exception) {
+                        "Pending approval"
+                    }
 
-					withContext(Dispatchers.Main) {
-						statusText.text = "$msg ($code)"
-						scheduleRetry()
-					}
+                    withContext(Dispatchers.Main) {
+                        statusText.text = "$msg ($code)"
+                        scheduleRetry()
+                    }
                 }
+
             } catch (e: Exception) {
                 Log.e(TAG, "registerDevice failed", e)
                 withContext(Dispatchers.Main) {
@@ -140,7 +142,10 @@ class MainActivity : AppCompatActivity() {
             val token = prefs.getString(PREF_DEVICE_TOKEN, null) ?: return@launch
             val endpoint = "$serverBaseUrl/api/playlist/$deviceId"
 
-            Log.i(TAG, "GET $endpoint headers={X-Device-Id=$deviceId, X-Device-Token=${token.take(6)}…}")
+            Log.i(
+                TAG,
+                "GET $endpoint headers={X-Device-Id=$deviceId, X-Device-Token=${token.take(6)}…}"
+            )
 
             try {
                 val url = URL(endpoint)
