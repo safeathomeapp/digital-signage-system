@@ -504,16 +504,6 @@ def assign_content_with_schedule():
         
         conn = sqlite3.connect('signage.db')
         
-        # Check if assignment already exists
-        cursor = conn.execute('''
-            SELECT id FROM device_content 
-            WHERE device_id = ? AND media_id = ? AND is_active = 1
-        ''', (device_id, media_id))
-        
-        if cursor.fetchone():
-            conn.close()
-            return jsonify({'error': 'Content already assigned to this device'}), 400
-        
         # Get video duration from media table if it's a video
         cursor = conn.execute('SELECT file_type, video_duration FROM media WHERE id = ?', (media_id,))
         media_info = cursor.fetchone()
@@ -745,27 +735,20 @@ def assign_all_devices():
         for device in devices:
             device_id = device[0]
             
-            # Check if assignment already exists
+            # Always allow duplicates for weaving content
             cursor = conn.execute('''
-                SELECT id FROM device_content 
-                WHERE device_id = ? AND media_id = ? AND is_active = 1
-            ''', (device_id, media_id))
+                SELECT COALESCE(MAX(play_order), 0) + 1 
+                FROM device_content 
+                WHERE device_id = ? AND is_active = 1
+            ''', (device_id,))
+            next_order = cursor.fetchone()[0]
             
-            if not cursor.fetchone():
-                # Get next play order
-                cursor = conn.execute('''
-                    SELECT COALESCE(MAX(play_order), 0) + 1 
-                    FROM device_content 
-                    WHERE device_id = ? AND is_active = 1
-                ''', (device_id,))
-                next_order = cursor.fetchone()[0]
-                
-                # Create new assignment
-                conn.execute('''
-                    INSERT INTO device_content (device_id, media_id, display_duration, play_order, is_active)
-                    VALUES (?, ?, ?, ?, 1)
-                ''', (device_id, media_id, duration, next_order))
-                assigned_count += 1
+            # Create new assignment
+            conn.execute('''
+                INSERT INTO device_content (device_id, media_id, display_duration, play_order, is_active)
+                VALUES (?, ?, ?, ?, 1)
+            ''', (device_id, media_id, duration, next_order))
+            assigned_count += 1
         
         conn.commit()
         update_content_timestamp()
