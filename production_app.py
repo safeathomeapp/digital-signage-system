@@ -1024,6 +1024,8 @@ def register_device():
     token = _get_or_create_device_token(device_id)
     return jsonify({'device_id': device_id, 'token': token}), 200
 
+from flask import Flask, request, jsonify, render_template, redirect  # make sure redirect is imported
+
 @app.route('/api/device/<device_id>/activate', methods=['PUT'])
 def activate_device(device_id):
     try:
@@ -1050,6 +1052,8 @@ def activate_device(device_id):
 @require_device_auth
 def get_playlist(device_id):
     logger.info("HIT get_playlist() production_app.py build=2026-02-07 A")
+    print("HIT get_playlist production_app.py build=2026-02-07 A")
+    
     try:
         conn = get_db_connection()
 
@@ -1120,7 +1124,12 @@ def get_playlist(device_id):
         conn.close()
 
         # IMPORTANT: return a raw JSON array to match Android JSONArray(responseText)
-        return jsonify(playlist), 200
+        return jsonify({
+            'device_id': device_id,
+            'server_ip': SERVER_IP,
+            'updated_at': now.isoformat(),
+            'playlist': playlist
+        }), 200
 
     except Exception as e:
         logger.error(f"Error serving device playlist: {e}")

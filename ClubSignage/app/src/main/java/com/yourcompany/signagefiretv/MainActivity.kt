@@ -168,7 +168,13 @@ class MainActivity : AppCompatActivity() {
 
                 withContext(Dispatchers.Main) {
                     if (code == 200 && !responseText.isNullOrBlank()) {
-                        currentPlaylist = JSONArray(responseText)
+                        currentPlaylist = try {
+                            val obj = JSONObject(responseText)
+                            obj.getJSONArray("playlist")
+                        } catch (_: Exception) {
+                            // Backward compatibility if server ever returns a raw array
+                            JSONArray(responseText)
+                        }
                         startPlayback()
                     } else {
                         // If token invalid/expired or device not approved, force re-register flow
