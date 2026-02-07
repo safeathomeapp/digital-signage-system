@@ -428,6 +428,8 @@ System:
 5. `PUT /api/system/pin` sets admin PIN
 6. `POST /api/system/pin/verify` verifies admin PIN
 7. `POST /api/system/overlay-logo` uploads global overlay logo
+8. `POST /api/analytics/event` ingests playback analytics (device -> server)
+9. `GET /api/analytics/media/<media_id>` returns summary + per-device stats
 
 File serving:
 1. `GET /uploads/<filename>` serves uploaded files
@@ -534,6 +536,7 @@ Performance and caching:
 2. If media URLs fail to load, the client should retry and skip gracefully.
 3. The server does not currently signal content versioning beyond `updated_at`.
 4. Video playback uses Media3 and advances on playback end (not timer).
+5. Playback analytics are emitted per item with exact start/end timestamps.
 
 ---
 

@@ -390,9 +390,12 @@ class MainActivity : AppCompatActivity() {
                 if (fileType.equals("video", ignoreCase = true)) {
                     playVideoAndAwaitEnd(item)
                 } else {
+                    val startedAt = System.currentTimeMillis()
                     displayItem(item)
                     val delayMs = getDisplayDurationMs(item)
                     delay(delayMs)
+                    val endedAt = System.currentTimeMillis()
+                    sendPlaybackEvent(item, startedAt, endedAt, plannedSeconds = (delayMs / 1000).toInt(), completed = true)
                 }
                 currentIndex = (currentIndex + 1) % playlist.length()
             }
@@ -441,6 +444,7 @@ class MainActivity : AppCompatActivity() {
         if (url.isBlank()) return
         val filename = item.optString("filename", "Unknown")
         updateContentInfo("$filename (video)")
+        val startedAt = System.currentTimeMillis()
         showVideo(url)
 
         val playerRef = player ?: return
@@ -470,8 +474,10 @@ class MainActivity : AppCompatActivity() {
             // If the player is already ended, resume immediately.
             if (playerRef.playbackState == Player.STATE_ENDED && cont.isActive) {
                 cont.resume(Unit)
+            }
         }
-    }
+        val endedAt = System.currentTimeMillis()
+        sendPlaybackEvent(item, startedAt, endedAt, plannedSeconds = null, completed = true)
     }
 
     private fun showImageWithTransition(url: String, typeRaw: String, durationSeconds: Double) {
@@ -616,6 +622,65 @@ class MainActivity : AppCompatActivity() {
             return
         }
         overlayLogo.visibility = View.VISIBLE
+    }
+
+    private fun sendPlaybackEvent(
+        item: JSONObject,
+        startedMs: Long,
+        endedMs: Long,
+        plannedSeconds: Int?,
+        completed: Boolean
+    ) {
+        val serverBaseUrl = getServerBaseUrl()
+        if (serverBaseUrl.isBlank()) return
+
+        val mediaId = item.optInt("id", 0)
+        if (mediaId <= 0) return
+
+        val filename = item.optString("filename", "")
+        val fileType = item.optString("file_type", "")
+        val token = prefs.getString(PREF_DEVICE_TOKEN, null) ?: return
+
+        val startedIso = toIsoUtc(startedMs)
+        val endedIso = toIsoUtc(endedMs)
+        val actualSeconds = ((endedMs - startedMs).coerceAtLeast(0) / 1000).toInt()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val url = URL("$serverBaseUrl/api/analytics/event")
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("X-Device-Id", deviceId)
+                    setRequestProperty("X-Device-Token", token)
+                    connectTimeout = 5_000
+                    readTimeout = 5_000
+                    doOutput = true
+                }
+
+                val body = JSONObject().apply {
+                    put("media_id", mediaId)
+                    put("filename", filename)
+                    put("file_type", fileType)
+                    put("started_at", startedIso)
+                    put("ended_at", endedIso)
+                    if (plannedSeconds != null) put("planned_duration", plannedSeconds)
+                    put("actual_duration", actualSeconds)
+                    put("completed", completed)
+                }.toString()
+
+                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                conn.responseCode
+                conn.disconnect()
+            } catch (_: Exception) {
+                // Best-effort only
+            }
+        }
+    }
+
+    private fun toIsoUtc(epochMs: Long): String {
+        val seconds = epochMs / 1000
+        return java.time.Instant.ofEpochSecond(seconds).toString()
     }
 
     private fun getDisplayDurationMs(item: JSONObject): Long {

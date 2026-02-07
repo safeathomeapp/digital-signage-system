@@ -1524,6 +1524,115 @@ def cleanup_database():
     except Exception as e:
         logger.error(f"Database cleanup error: {e}")
         return jsonify({'error': 'Failed to cleanup database'}), 500
+
+# Playback analytics event ingest (device -> server)
+@app.route('/api/analytics/event', methods=['POST'])
+@require_device_auth
+def ingest_playback_event():
+    try:
+        data = request.get_json() or {}
+        device_id = (request.headers.get("X-Device-Id") or "").strip()
+
+        media_id = data.get('media_id')
+        filename = data.get('filename', '')
+        file_type = data.get('file_type', '')
+        started_at = data.get('started_at')
+        ended_at = data.get('ended_at')
+        planned_duration = data.get('planned_duration')
+        actual_duration = data.get('actual_duration')
+        completed = bool(data.get('completed', True))
+
+        if not media_id or not filename or not file_type:
+            return jsonify({'error': 'media_id, filename, file_type required'}), 400
+
+        # Normalize timestamps if missing
+        now_iso = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+        if not started_at:
+            started_at = now_iso
+        if not ended_at:
+            ended_at = now_iso
+
+        conn = sqlite3.connect('signage.db')
+        conn.execute('''
+            INSERT INTO playback_analytics
+            (device_id, media_id, filename, file_type, started_at, ended_at,
+             planned_duration, actual_duration, completed)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            device_id,
+            media_id,
+            filename,
+            file_type,
+            started_at,
+            ended_at,
+            planned_duration,
+            actual_duration,
+            1 if completed else 0
+        ))
+        conn.commit()
+        conn.close()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Analytics ingest error: {e}")
+        return jsonify({'error': 'Failed to ingest analytics'}), 500
+
+# Analytics summary for a media item (with per-device breakdown)
+@app.route('/api/analytics/media/<int:media_id>')
+def analytics_media_summary(media_id):
+    try:
+        date_from = request.args.get('from')
+        date_to = request.args.get('to')
+
+        where_clauses = ['media_id = ?']
+        params = [media_id]
+
+        if date_from:
+            where_clauses.append("date(started_at) >= date(?)")
+            params.append(date_from)
+        if date_to:
+            where_clauses.append("date(started_at) <= date(?)")
+            params.append(date_to)
+
+        where_sql = " AND ".join(where_clauses)
+
+        conn = sqlite3.connect('signage.db')
+        conn.row_factory = sqlite3.Row
+
+        summary = conn.execute(f'''
+            SELECT
+                COUNT(*) as plays,
+                SUM(COALESCE(actual_duration, 0)) as total_seconds,
+                COUNT(DISTINCT device_id) as unique_devices
+            FROM playback_analytics
+            WHERE {where_sql}
+        ''', params).fetchone()
+
+        per_device = conn.execute(f'''
+            SELECT
+                device_id,
+                COUNT(*) as plays,
+                SUM(COALESCE(actual_duration, 0)) as total_seconds
+            FROM playback_analytics
+            WHERE {where_sql}
+            GROUP BY device_id
+            ORDER BY total_seconds DESC
+        ''', params).fetchall()
+
+        conn.close()
+
+        return jsonify({
+            'media_id': media_id,
+            'from': date_from,
+            'to': date_to,
+            'plays': summary['plays'] or 0,
+            'total_seconds': summary['total_seconds'] or 0,
+            'unique_devices': summary['unique_devices'] or 0,
+            'per_device': [dict(row) for row in per_device]
+        })
+    except Exception as e:
+        logger.error(f"Analytics summary error: {e}")
+        return jsonify({'error': 'Failed to fetch analytics'}), 500
  
 # Add these routes to your production_app.py
 

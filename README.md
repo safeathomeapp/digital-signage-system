@@ -149,6 +149,7 @@ The Android app must be switched **before deploying to real hardware**.
   - `/api/device/<id>/activate` added
   - `/api/playlist/<id>` now **always returns wrapper**
   - Token verification enforced
+  - Playback analytics ingest + per-media summary
 
 ### Admin UI
 - `templates/index.html`
