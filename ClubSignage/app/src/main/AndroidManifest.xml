@@ -38,7 +38,7 @@
             android:exported="true"
             android:screenOrientation="landscape"
             android:launchMode="singleTop"
-            android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+            android:theme="@style/Theme.ClubSignage">
 
             <!-- Main launcher intent -->
             <intent-filter>

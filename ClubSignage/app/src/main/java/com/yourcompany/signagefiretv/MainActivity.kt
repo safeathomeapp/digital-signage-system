@@ -3,8 +3,7 @@ package com.yourcompany.signagefiretv
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.view.KeyEvent
-import android.view.View
+import android.util.Log
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -12,6 +11,7 @@ import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import kotlinx.coroutines.*
 import org.json.JSONArray
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
@@ -25,12 +25,13 @@ class MainActivity : AppCompatActivity() {
     private var currentPlaylist: JSONArray? = null
     private var currentIndex = 0
     private var isPlaying = false
-    private var settingsVisible = false
 
-    private var refreshJob: Job? = null
     private var retryJob: Job? = null
 
-    private val serverBaseUrl = "http://10.0.2.2:5000"
+    // Phase 3B: Use adb reverse -> emulator hits localhost, adb tunnels to host port 5000
+    // Run on host each emulator boot: adb reverse tcp:5000 tcp:5000
+    private val serverBaseUrl = "http://127.0.0.1:5000"
+
     private val deviceId: String by lazy {
         prefs.getString(PREF_DEVICE_ID, null)
             ?: UUID.randomUUID().toString().also {
@@ -52,11 +53,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun ensureRegistered() {
         val token = prefs.getString(PREF_DEVICE_TOKEN, null)
-        if (token == null) {
-            registerDevice()
-        } else {
-            connectToServer()
-        }
+        Log.i(TAG, "ensureRegistered: deviceId=$deviceId tokenPresent=${token != null}")
+        if (token == null) registerDevice() else connectToServer()
     }
 
     private fun clearDeviceToken() {
@@ -65,37 +63,72 @@ class MainActivity : AppCompatActivity() {
 
     private fun registerDevice() {
         statusText.text = "Registering device…"
+
         lifecycleScope.launch(Dispatchers.IO) {
+            val endpoint = "$serverBaseUrl/api/register"
+            Log.i(TAG, "POST $endpoint body={device_id=$deviceId}")
+
             try {
-                val url = URL("$serverBaseUrl/api/register")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.setRequestProperty("Content-Type", "application/json")
-                conn.doOutput = true
+                val url = URL(endpoint)
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("Accept", "application/json")
+                    connectTimeout = 10_000
+                    readTimeout = 10_000
+                    doOutput = true
+                }
 
                 val body = """{"device_id":"$deviceId"}"""
-                conn.outputStream.use { it.write(body.toByteArray()) }
+                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
                 val code = conn.responseCode
-                val response = conn.inputStream.bufferedReader().use { it.readText() }
+                val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                val responseText = stream?.bufferedReader()?.use { it.readText() } ?: ""
 
                 conn.disconnect()
 
+                Log.i(TAG, "registerDevice: code=$code response=$responseText")
+
                 if (code == 200) {
-                    val token = response.trim()
+                    // Server returns JSON {device_id, token}
+                    val token = try {
+						JSONObject(responseText).optString("token").trim()
+					} catch (_: Exception) {
+						""
+					}
+
+                    if (token.isBlank()) {
+                        withContext(Dispatchers.Main) {
+                            statusText.text = "Registration failed (empty token)"
+                            scheduleRetry()
+                        }
+                        return@launch
+                    }
+
                     prefs.edit().putString(PREF_DEVICE_TOKEN, token).apply()
+
                     withContext(Dispatchers.Main) {
+                        statusText.text = "Registered"
                         connectToServer()
                     }
                 } else {
-                    withContext(Dispatchers.Main) {
-                        statusText.text = "Pending approval"
-                        scheduleRetry()
-                    }
+					val msg = try {
+						val detail = JSONObject(responseText).optString("detail").trim()
+						if (detail.isNotEmpty()) detail else "Pending approval"
+					} catch (_: Exception) {
+						"Pending approval"
+					}
+
+					withContext(Dispatchers.Main) {
+						statusText.text = "$msg ($code)"
+						scheduleRetry()
+					}
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "registerDevice failed", e)
                 withContext(Dispatchers.Main) {
-                    statusText.text = "Registration failed"
+                    statusText.text = "Registration failed: ${e.javaClass.simpleName}"
                     scheduleRetry()
                 }
             }
@@ -104,30 +137,43 @@ class MainActivity : AppCompatActivity() {
 
     private fun connectToServer() {
         lifecycleScope.launch(Dispatchers.IO) {
+            val token = prefs.getString(PREF_DEVICE_TOKEN, null) ?: return@launch
+            val endpoint = "$serverBaseUrl/api/playlist/$deviceId"
+
+            Log.i(TAG, "GET $endpoint headers={X-Device-Id=$deviceId, X-Device-Token=${token.take(6)}…}")
+
             try {
-                val token = prefs.getString(PREF_DEVICE_TOKEN, null) ?: return@launch
-                val url = URL("$serverBaseUrl/api/playlist/$deviceId")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.setRequestProperty("X-Device-Id", deviceId)
-                conn.setRequestProperty("X-Device-Token", token)
+                val url = URL(endpoint)
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    setRequestProperty("X-Device-Id", deviceId)
+                    setRequestProperty("X-Device-Token", token)
+                    setRequestProperty("Accept", "application/json")
+                    connectTimeout = 10_000
+                    readTimeout = 10_000
+                }
 
                 val code = conn.responseCode
-                val body = if (code == 200) {
-                    conn.inputStream.bufferedReader().use { it.readText() }
-                } else null
+                val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                val responseText = stream?.bufferedReader()?.use { it.readText() }
 
                 conn.disconnect()
 
+                Log.i(TAG, "connectToServer: code=$code response=${responseText?.take(400)}")
+
                 withContext(Dispatchers.Main) {
-                    if (code == 200 && body != null) {
-                        currentPlaylist = JSONArray(body)
+                    if (code == 200 && !responseText.isNullOrBlank()) {
+                        currentPlaylist = JSONArray(responseText)
                         startPlayback()
                     } else {
+                        // If token invalid/expired or device not approved, force re-register flow
                         clearDeviceToken()
+                        statusText.text = "Re-auth required ($code)"
                         ensureRegistered()
                     }
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "connectToServer failed", e)
                 withContext(Dispatchers.Main) {
                     statusText.text = "Offline – retrying"
                     scheduleRetry()
@@ -138,15 +184,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun startPlayback() {
         val playlist = currentPlaylist ?: return
-        if (playlist.length() == 0) return
+        if (playlist.length() == 0) {
+            statusText.text = "No content"
+            return
+        }
 
         isPlaying = true
         currentIndex = 0
+        statusText.text = "Playing"
         displayItem(playlist.getJSONObject(0))
     }
 
-    private fun displayItem(item: org.json.JSONObject) {
+    private fun displayItem(item: JSONObject) {
         val url = item.optString("url")
+        if (url.isBlank()) return
         Glide.with(this).load(url).into(imageView)
     }
 
@@ -160,11 +211,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        refreshJob?.cancel()
         retryJob?.cancel()
     }
 
     companion object {
+        private const val TAG = "Signage"
         private const val PREFS_NAME = "signage_prefs"
         private const val PREF_DEVICE_ID = "device_id"
         private const val PREF_DEVICE_TOKEN = "device_token"

@@ -1,5 +1,7 @@
+print("RUNNING production_app.py FROM:", __file__)
+
 # Enhanced Flask Backend with Device-Specific Content Management
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, redirect
 from werkzeug.utils import secure_filename
 import sqlite3
 import os
@@ -9,11 +11,109 @@ import socket
 import logging
 from waitress import serve
 import time
+import secrets
+import hmac
+import threading
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-change-this-in-production'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max
+# Device token store (file-backed)
+TOKEN_STORE_PATH = os.environ.get('SIGNAGE_TOKEN_STORE', 'device_tokens.json')
+_TOKEN_LOCK = threading.Lock()
+
+def get_db_connection():
+    conn = sqlite3.connect('signage.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _load_token_store():
+    if not os.path.exists(TOKEN_STORE_PATH):
+        return {}
+    try:
+        with open(TOKEN_STORE_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f) or {}
+    except Exception:
+        logging.exception("Failed to load token store")
+        return {}
+
+def _save_token_store(store: dict):
+    tmp_path = TOKEN_STORE_PATH + ".tmp"
+    try:
+        with open(tmp_path, 'w', encoding='utf-8') as f:
+            json.dump(store, f, indent=2, sort_keys=True)
+        os.replace(tmp_path, TOKEN_STORE_PATH)
+    except Exception:
+        logging.exception("Failed to save token store")
+        # best effort cleanup
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
+
+def _get_or_create_device_token(device_id: str, force_rotate: bool = False) -> str:
+    """Idempotent unless force_rotate=True."""
+    with _TOKEN_LOCK:
+        store = _load_token_store()
+        rec = store.get(device_id)
+        if rec and (not force_rotate) and rec.get("token"):
+            return rec["token"]
+        token = secrets.token_urlsafe(32)
+        store[device_id] = {
+            "token": token,
+            "issued_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "rotated": bool(force_rotate),
+        }
+        _save_token_store(store)
+        return token
+
+def _is_device_active(device_id: str) -> bool:
+    try:
+        conn = get_db_connection()
+        row = conn.execute("SELECT device_id FROM devices WHERE device_id = ? AND is_active = 1", (device_id,)).fetchone()
+        conn.close()
+        return row is not None
+    except Exception:
+        logging.exception("Failed to verify device status")
+        return False
+
+def _verify_device_token(device_id: str, token: str) -> bool:
+    with _TOKEN_LOCK:
+        store = _load_token_store()
+        rec = store.get(device_id) or {}
+        stored = rec.get("token")
+    if not stored:
+        return False
+    # constant-time compare
+    try:
+        return hmac.compare_digest(str(stored), str(token))
+    except Exception:
+        return False
+
+def require_device_auth(fn):
+    """Protect client-facing endpoints with per-device token auth."""
+    from functools import wraps
+
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        device_id = (request.headers.get("X-Device-Id") or kwargs.get("device_id") or "").strip()
+        token = (request.headers.get("X-Device-Token") or "").strip()
+
+        if not device_id or not token:
+            return jsonify({"error": "unauthorized", "detail": "Missing X-Device-Id or X-Device-Token"}), 401
+
+        if not _is_device_active(device_id):
+            return jsonify({"error": "forbidden", "code": "inactive_device", "detail": "Unknown or inactive device"}), 403
+
+        if not _verify_device_token(device_id, token):
+            return jsonify({"error": "forbidden", "code": "invalid_token", "detail": "Invalid token"}), 403
+
+        return fn(*args, **kwargs)
+
+    return wrapper
 
 # Ensure folders exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -122,6 +222,8 @@ def init_db():
             end_time TIME,
             is_active BOOLEAN DEFAULT 1,
             play_order INTEGER DEFAULT 0,
+            transition_type TEXT DEFAULT "fade",
+            transition_duration REAL DEFAULT 1.0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (media_id) REFERENCES media (id),
             FOREIGN KEY (device_id) REFERENCES devices (device_id)
@@ -441,46 +543,44 @@ def get_media_list():
 @app.route('/api/devices')
 def get_devices():
     try:
-        conn = sqlite3.connect('signage.db')
+        conn = get_db_connection()
         cursor = conn.execute('''
             SELECT d.device_id, d.device_name, d.custom_name, d.location, d.last_checkin,
                    d.is_active, d.ip_address, d.app_version, d.created_at,
                    COUNT(dc.id) as content_count
             FROM devices d
-            LEFT JOIN device_content dc ON d.device_id = dc.device_id 
-                AND dc.is_active = 1 
+            LEFT JOIN device_content dc ON d.device_id = dc.device_id
+                AND dc.is_active = 1
                 AND dc.media_id IN (SELECT id FROM media)
             GROUP BY d.device_id, d.device_name, d.custom_name, d.location, d.last_checkin,
                      d.is_active, d.ip_address, d.app_version, d.created_at
             ORDER BY d.last_checkin DESC
         ''')
-        
+
+        token_store = _load_token_store()
         devices = []
         for row in cursor.fetchall():
             devices.append({
-                'device_id': row[0],
-                'device_name': row[1],
-                'custom_name': row[2],
-                'location': row[3],
-                'last_checkin': row[4],
-                'is_active': bool(row[5]),
-                'ip_address': row[6],
-                'app_version': row[7],
-                'created_at': row[8],
-                'content_count': row[9],
-                'display_name': row[2] if row[2] else row[1]
+                'device_id': row['device_id'],
+                'token_registered': bool(token_store.get(row['device_id'], {}).get('token')),
+                'device_name': row['device_name'],
+                'custom_name': row['custom_name'],
+                'location': row['location'],
+                'last_checkin': row['last_checkin'],
+                'is_active': bool(row['is_active']),
+                'ip_address': row['ip_address'],
+                'app_version': row['app_version'],
+                'created_at': row['created_at'],
+                'content_count': row['content_count'],
+                'display_name': row['custom_name'] if row['custom_name'] else row['device_name']
             })
-        
+
         conn.close()
         return jsonify(devices)
-    
+
     except Exception as e:
         logger.error(f"Error getting devices: {e}")
         return jsonify({'error': 'Failed to get devices'}), 500
-    
-    except Exception as e:
-        logger.error(f"Error getting detailed media list: {e}")
-        return jsonify({'error': 'Failed to get detailed media list'}), 500
 
 # Update media schedule
 @app.route('/api/media/<int:media_id>/schedule', methods=['PUT'])
@@ -861,93 +961,147 @@ def update_device(device_id):
         return jsonify({'error': 'Failed to update device'}), 500
         
 # Android API - Device-specific playlists
-@app.route('/api/playlist/<device_id>')
-def get_playlist(device_id):
+@@app.route('/api/register', methods=['POST'])
+def register_device():
+    """One-time device registration to obtain a per-device token."""
+    data = request.get_json(silent=True) or {}
+    device_id = (data.get('device_id') or request.headers.get('X-Device-Id') or "").strip()
+
+    if not device_id:
+        return jsonify({'error': 'bad_request', 'detail': 'device_id required'}), 400
+
     try:
-        # Register device checkin
-        conn = sqlite3.connect('signage.db')
-        
-        # Check if device already exists
-        cursor = conn.execute('SELECT custom_name, location FROM devices WHERE device_id = ?', (device_id,))
-        existing_device = cursor.fetchone()
-        
-        if existing_device:
-            conn.execute('''
-                UPDATE devices 
-                SET last_checkin = ?, is_active = 1, ip_address = ?
-                WHERE device_id = ?
-            ''', (datetime.now(), request.remote_addr, device_id))
-        else:
+        conn = get_db_connection()
+        row = conn.execute(
+            'SELECT device_id, is_active FROM devices WHERE device_id = ?',
+            (device_id,)
+        ).fetchone()
+
+        # If device doesn't exist, create INACTIVE (approval required)
+        if row is None:
             conn.execute('''
                 INSERT INTO devices (device_id, device_name, last_checkin, is_active, ip_address)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (device_id, f'TV-{device_id[:8]}', datetime.now(), 1, request.remote_addr))
-        
+                VALUES (?, ?, ?, 0, ?)
+            ''', (device_id, f'Device {device_id[:8]}', datetime.now(), request.remote_addr))
+            conn.commit()
+            conn.close()
+            return jsonify({
+                'error': 'forbidden',
+                'code': 'pending_approval',
+                'detail': 'Device created but inactive. Approve/activate in admin UI.'
+            }), 403
+
+        # If exists but inactive, still pending approval
+        if int(row['is_active']) != 1:
+            conn.execute(
+                'UPDATE devices SET last_checkin = ?, ip_address = ? WHERE device_id = ?',
+                (datetime.now(), request.remote_addr, device_id)
+            )
+            conn.commit()
+            conn.close()
+            return jsonify({
+                'error': 'forbidden',
+                'code': 'pending_approval',
+                'detail': 'Device inactive. Approve/activate in admin UI.'
+            }), 403
+
+        # Active device: update checkin, issue/reuse token
+        conn.execute(
+            'UPDATE devices SET last_checkin = ?, ip_address = ? WHERE device_id = ?',
+            (datetime.now(), request.remote_addr, device_id)
+        )
         conn.commit()
-        
-        # Get current day and time
+        conn.close()
+
+        token = _get_or_create_device_token(device_id)
+        return jsonify({'device_id': device_id, 'token': token}), 200
+
+    except Exception:
+        logger.exception('Registration failed')
+        return jsonify({'error': 'server_error'}), 500
+
+
+    token = _get_or_create_device_token(device_id)
+    return jsonify({'device_id': device_id, 'token': token}), 200
+@@app.route('/api/playlist/<device_id>')
+@require_device_auth
+def get_playlist(device_id):
+    try:
+        conn = get_db_connection()
+
+        # Only update checkin/IP; do NOT flip is_active here
+        conn.execute('''
+            UPDATE devices
+            SET last_checkin = ?, ip_address = ?
+            WHERE device_id = ?
+        ''', (datetime.now(), request.remote_addr, device_id))
+        conn.commit()
+
         now = datetime.now()
         today = now.date()
         current_time = now.time()
         current_day = today.strftime('%a').lower()
-        
-        # Query device-specific content WITH TRANSITION DATA
+
         cursor = conn.execute('''
             SELECT dc.media_id, m.filename, m.file_type, dc.display_duration,
-                   dc.days_of_week, dc.start_date, dc.end_date, dc.start_time, dc.end_time, 
+                   dc.days_of_week, dc.start_date, dc.end_date, dc.start_time, dc.end_time,
                    dc.play_order, dc.transition_type, dc.transition_duration
             FROM device_content dc
             JOIN media m ON dc.media_id = m.id
-            WHERE dc.device_id = ? AND dc.is_active = 1
-            AND (dc.start_date IS NULL OR dc.start_date <= ?)
-            AND (dc.end_date IS NULL OR dc.end_date >= ?)
+            WHERE dc.device_id = ?
+              AND dc.is_active = 1
+              AND (dc.start_date IS NULL OR dc.start_date <= ?)
+              AND (dc.end_date   IS NULL OR dc.end_date   >= ?)
             ORDER BY dc.play_order, dc.created_at
         ''', (device_id, today, today))
-        
+
         playlist = []
         for row in cursor.fetchall():
-            media_id, filename, file_type, duration, days_json, start_date, end_date, start_time_str, end_time_str, play_order, transition_type, transition_duration = row
-            
-            # Check day of week and time (existing logic)
-            days_of_week = json.loads(days_json) if days_json else ['all']
+            (media_id, filename, file_type, duration,
+             days_json, start_date, end_date, start_time_str, end_time_str,
+             play_order, transition_type, transition_duration) = row
+
+            # Days
+            try:
+                days_of_week = json.loads(days_json) if days_json else ['all']
+            except Exception:
+                days_of_week = ['all']
+
             day_matches = (
                 'all' in days_of_week or
                 current_day in days_of_week or
                 (current_day in ['mon', 'tue', 'wed', 'thu', 'fri'] and 'weekdays' in days_of_week) or
                 (current_day in ['sat', 'sun'] and 'weekends' in days_of_week)
             )
-            
+
+            # Time
             time_matches = True
             if start_time_str and end_time_str:
-                from datetime import time
-                start_time = time.fromisoformat(start_time_str)
-                end_time = time.fromisoformat(end_time_str)
-                time_matches = start_time <= current_time <= end_time
-            
+                start_t = datetime.strptime(start_time_str, "%H:%M:%S").time() if len(start_time_str) > 5 else datetime.strptime(start_time_str, "%H:%M").time()
+                end_t   = datetime.strptime(end_time_str,   "%H:%M:%S").time() if len(end_time_str)   > 5 else datetime.strptime(end_time_str,   "%H:%M").time()
+                time_matches = start_t <= current_time <= end_t
+
             if day_matches and time_matches:
                 playlist.append({
                     'id': media_id,
                     'filename': filename,
                     'file_type': file_type,
                     'display_duration': duration,
-                    'play_order': play_order,
+                    'play_order': play_order or 0,
                     'transition_type': transition_type or 'fade',
                     'transition_duration': transition_duration or 1.0,
                     'url': f'http://{SERVER_IP}:5000/uploads/{filename}'
                 })
-        
+
         conn.close()
-        
-        return jsonify({
-            'device_id': device_id,
-            'server_ip': SERVER_IP,
-            'updated_at': now.isoformat(),
-            'playlist': playlist
-        })
-    
+
+        # IMPORTANT: return a raw JSON array to match Android JSONArray(responseText)
+        return jsonify(playlist), 200
+
     except Exception as e:
         logger.error(f"Error serving device playlist: {e}")
         return jsonify({'error': 'Failed to get playlist'}), 500
+
 
 # File serving
 @app.route('/uploads/<filename>')

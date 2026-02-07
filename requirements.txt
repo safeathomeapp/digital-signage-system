@@ -1,5 +1,5 @@
 flask==2.3.3
 werkzeug==2.3.7
-pillow==10.0.1
+pillow==12.1.0
 waitress==2.1.2
-pywin32==306
+pywin32==311
