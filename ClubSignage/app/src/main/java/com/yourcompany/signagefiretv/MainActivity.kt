@@ -28,6 +28,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var deviceInfoText: TextView
     private lateinit var contentInfoText: TextView
     private lateinit var imageView: ImageView
+    private lateinit var imageViewAlt: ImageView
     private lateinit var settingsLayout: LinearLayout
     private lateinit var serverIpInput: EditText
     private lateinit var deviceNameInput: EditText
@@ -57,6 +58,7 @@ class MainActivity : AppCompatActivity() {
         deviceInfoText = findViewById(R.id.deviceInfoText)
         contentInfoText = findViewById(R.id.contentInfoText)
         imageView = findViewById(R.id.imageView)
+        imageViewAlt = findViewById(R.id.imageViewAlt)
         settingsLayout = findViewById(R.id.settingsLayout)
         serverIpInput = findViewById(R.id.serverIpInput)
         deviceNameInput = findViewById(R.id.deviceNameInput)
@@ -353,8 +355,87 @@ class MainActivity : AppCompatActivity() {
     private fun displayItem(item: JSONObject) {
         val url = item.optString("url")
         if (url.isBlank()) return
-        updateContentInfo(item.optString("filename", "Unknown"))
-        Glide.with(this).load(url).into(imageView)
+        val filename = item.optString("filename", "Unknown")
+        val transitionType = item.optString("transition_type", "fade")
+        val transitionDuration = item.optDouble("transition_duration", 1.0)
+        updateContentInfo("$filename (${transitionType})")
+        showImageWithTransition(url, transitionType, transitionDuration)
+    }
+
+    private fun showImageWithTransition(url: String, typeRaw: String, durationSeconds: Double) {
+        val type = typeRaw.lowercase().ifBlank { "fade" }
+        val durationMs = (durationSeconds.coerceIn(0.1, 5.0) * 1000).toLong()
+
+        val incoming = if (imageView.visibility == View.VISIBLE) imageViewAlt else imageView
+        val outgoing = if (incoming === imageView) imageViewAlt else imageView
+
+        val outgoingHasImage = outgoing.drawable != null && outgoing.visibility == View.VISIBLE
+        if (type == "none" || durationMs <= 0 || !outgoingHasImage) {
+            incoming.alpha = 1f
+            incoming.translationX = 0f
+            incoming.translationY = 0f
+            incoming.scaleX = 1f
+            incoming.scaleY = 1f
+            incoming.visibility = View.VISIBLE
+            Glide.with(this).load(url).into(incoming)
+            outgoing.visibility = View.GONE
+            return
+        }
+
+        val width = (incoming.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels).toFloat()
+        val height = (incoming.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels).toFloat()
+
+        // Prepare incoming start state
+        incoming.alpha = 0f
+        incoming.translationX = 0f
+        incoming.translationY = 0f
+        incoming.scaleX = 1f
+        incoming.scaleY = 1f
+
+        when (type) {
+            "slide-left" -> incoming.translationX = width
+            "slide-right" -> incoming.translationX = -width
+            "slide-up" -> incoming.translationY = height
+            "slide-down" -> incoming.translationY = -height
+            "zoom-in" -> {
+                incoming.scaleX = 1.2f
+                incoming.scaleY = 1.2f
+            }
+            "zoom-out" -> {
+                incoming.scaleX = 0.8f
+                incoming.scaleY = 0.8f
+            }
+        }
+
+        incoming.visibility = View.VISIBLE
+        Glide.with(this).load(url).into(incoming)
+
+        // Animate outgoing out (fade + optional slide)
+        when (type) {
+            "slide-left" -> outgoing.animate().translationX(-width).alpha(0f).setDuration(durationMs)
+            "slide-right" -> outgoing.animate().translationX(width).alpha(0f).setDuration(durationMs)
+            "slide-up" -> outgoing.animate().translationY(-height).alpha(0f).setDuration(durationMs)
+            "slide-down" -> outgoing.animate().translationY(height).alpha(0f).setDuration(durationMs)
+            else -> outgoing.animate().alpha(0f).setDuration(durationMs)
+        }.start()
+
+        // Animate incoming in
+        incoming.animate()
+            .alpha(1f)
+            .translationX(0f)
+            .translationY(0f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(durationMs)
+            .withEndAction {
+                outgoing.visibility = View.GONE
+                outgoing.alpha = 1f
+                outgoing.translationX = 0f
+                outgoing.translationY = 0f
+                outgoing.scaleX = 1f
+                outgoing.scaleY = 1f
+            }
+            .start()
     }
 
     private fun getDisplayDurationMs(item: JSONObject): Long {

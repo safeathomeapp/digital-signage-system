@@ -21,6 +21,18 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- Secondary Image View for transitions -->
+    <ImageView
+        android:id="@+id/imageViewAlt"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:scaleType="fitCenter"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <!-- Video Player View for displaying videos -->
     <com.google.android.exoplayer2.ui.PlayerView
         android:id="@+id/videoView"
