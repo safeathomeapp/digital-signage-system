@@ -39,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     private var isPlaying = false
 
     private var retryJob: Job? = null
+    private var playbackJob: Job? = null
 
     private val deviceId: String by lazy {
         prefs.getString(PREF_DEVICE_ID, null)
@@ -337,7 +338,16 @@ class MainActivity : AppCompatActivity() {
         currentIndex = 0
         statusText.text = "Playing"
         updateContentInfo("Playlist: ${playlist.length()} items")
-        displayItem(playlist.getJSONObject(0))
+        playbackJob?.cancel()
+        playbackJob = lifecycleScope.launch {
+            while (isActive && isPlaying) {
+                val item = playlist.getJSONObject(currentIndex)
+                displayItem(item)
+                val delayMs = getDisplayDurationMs(item)
+                delay(delayMs)
+                currentIndex = (currentIndex + 1) % playlist.length()
+            }
+        }
     }
 
     private fun displayItem(item: JSONObject) {
@@ -345,6 +355,15 @@ class MainActivity : AppCompatActivity() {
         if (url.isBlank()) return
         updateContentInfo(item.optString("filename", "Unknown"))
         Glide.with(this).load(url).into(imageView)
+    }
+
+    private fun getDisplayDurationMs(item: JSONObject): Long {
+        val seconds = try {
+            item.optInt("display_duration", 10)
+        } catch (_: Exception) {
+            10
+        }
+        return (seconds.coerceAtLeast(3) * 1000).toLong()
     }
 
     private fun scheduleRetry() {
@@ -358,6 +377,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         retryJob?.cancel()
+        playbackJob?.cancel()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
