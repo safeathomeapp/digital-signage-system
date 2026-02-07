@@ -218,6 +218,7 @@ These belong to **Phase 4+** only.
 - Reliability > features.
 - No silent failures: log everything.
 - Do not “improve” the contract without updating both sides.
+- Active development branch: `dev` (smaller fixes/features land here before merging to `main`).
 
 ---
 

@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
-import android.view.KeyEvent
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -547,19 +546,6 @@ class MainActivity : AppCompatActivity() {
         playbackJob?.cancel()
         player?.release()
         player = null
-    }
-
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_MENU) {
-            val isVisible = settingsLayout.visibility == View.VISIBLE
-            showSettings(!isVisible)
-            return true
-        }
-        if (keyCode == KeyEvent.KEYCODE_BACK && settingsLayout.visibility == View.VISIBLE) {
-            showSettings(false)
-            return true
-        }
-        return super.onKeyDown(keyCode, event)
     }
 
     companion object {

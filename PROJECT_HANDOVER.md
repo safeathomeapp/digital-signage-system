@@ -307,6 +307,7 @@ Monitoring:
 2. Prioritize reliability over new features.
 3. Don’t “improve” playlist format without updating Android client.
 4. If you change schema, update both code and test on fresh DB.
+5. Active development branch: `dev` (merge to `main` for releases).
 
 ---
 
