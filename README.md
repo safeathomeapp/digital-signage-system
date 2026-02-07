@@ -133,6 +133,13 @@ The Android app must be switched **before deploying to real hardware**.
   - Enforced wrapped playlist parsing
   - Token handling hardened
   - Better error/status messages
+  - Server setup menu with saved URL
+  - TV focus highlight for menu buttons
+  - Playlist rotation by `display_duration`
+  - Image scaling uses `fitCenter`
+  - Image transitions: fade, slide, zoom
+  - Video playback via Media3 (ExoPlayer)
+  - Videos advance on playback end (not timer)
 
 ### Server
 - `production_app.py`
@@ -174,7 +181,8 @@ Everything has been validated on:
    - Registration
    - Approval
    - Playlist fetch
-   - Media playback
+   - Media playback (images + video)
+   - Transitions
 4. Validate:
    - Boot auto-start
    - Offline cache fallback

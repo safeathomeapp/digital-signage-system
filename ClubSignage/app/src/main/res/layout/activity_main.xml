@@ -34,7 +34,7 @@
         app:layout_constraintTop_toTopOf="parent" />
 
     <!-- Video Player View for displaying videos -->
-    <com.google.android.exoplayer2.ui.PlayerView
+    <androidx.media3.ui.PlayerView
         android:id="@+id/videoView"
         android:layout_width="0dp"
         android:layout_height="0dp"

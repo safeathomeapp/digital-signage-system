@@ -14,7 +14,14 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.PlaybackException
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.*
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -29,11 +36,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var contentInfoText: TextView
     private lateinit var imageView: ImageView
     private lateinit var imageViewAlt: ImageView
+    private lateinit var videoView: PlayerView
     private lateinit var settingsLayout: LinearLayout
     private lateinit var serverIpInput: EditText
     private lateinit var deviceNameInput: EditText
     private lateinit var testConnectionButton: Button
     private lateinit var saveSettingsButton: Button
+
+    private var player: ExoPlayer? = null
 
     private var currentPlaylist: JSONArray? = null
     private var currentIndex = 0
@@ -59,12 +69,14 @@ class MainActivity : AppCompatActivity() {
         contentInfoText = findViewById(R.id.contentInfoText)
         imageView = findViewById(R.id.imageView)
         imageViewAlt = findViewById(R.id.imageViewAlt)
+        videoView = findViewById(R.id.videoView)
         settingsLayout = findViewById(R.id.settingsLayout)
         serverIpInput = findViewById(R.id.serverIpInput)
         deviceNameInput = findViewById(R.id.deviceNameInput)
         testConnectionButton = findViewById(R.id.testConnectionButton)
         saveSettingsButton = findViewById(R.id.saveSettingsButton)
 
+        initPlayer()
         setupSettingsUi()
 
         statusText.text = "Starting…"
@@ -344,9 +356,14 @@ class MainActivity : AppCompatActivity() {
         playbackJob = lifecycleScope.launch {
             while (isActive && isPlaying) {
                 val item = playlist.getJSONObject(currentIndex)
-                displayItem(item)
-                val delayMs = getDisplayDurationMs(item)
-                delay(delayMs)
+                val fileType = item.optString("file_type", "image")
+                if (fileType.equals("video", ignoreCase = true)) {
+                    playVideoAndAwaitEnd(item)
+                } else {
+                    displayItem(item)
+                    val delayMs = getDisplayDurationMs(item)
+                    delay(delayMs)
+                }
                 currentIndex = (currentIndex + 1) % playlist.length()
             }
         }
@@ -358,11 +375,80 @@ class MainActivity : AppCompatActivity() {
         val filename = item.optString("filename", "Unknown")
         val transitionType = item.optString("transition_type", "fade")
         val transitionDuration = item.optDouble("transition_duration", 1.0)
-        updateContentInfo("$filename (${transitionType})")
+        updateContentInfo("$filename (image)")
         showImageWithTransition(url, transitionType, transitionDuration)
     }
 
+    private fun initPlayer() {
+        if (player != null) return
+        player = ExoPlayer.Builder(this).build()
+        videoView.player = player
+        videoView.useController = false
+    }
+
+    private fun showVideo(url: String) {
+        // Hide image views and stop any image animations
+        imageView.clearAnimation()
+        imageViewAlt.clearAnimation()
+        imageView.visibility = View.GONE
+        imageViewAlt.visibility = View.GONE
+
+        videoView.visibility = View.VISIBLE
+
+        val mediaItem = MediaItem.fromUri(url)
+        player?.apply {
+            stop()
+            setMediaItem(mediaItem)
+            prepare()
+            playWhenReady = true
+        }
+    }
+
+    private suspend fun playVideoAndAwaitEnd(item: JSONObject) {
+        val url = item.optString("url")
+        if (url.isBlank()) return
+        val filename = item.optString("filename", "Unknown")
+        updateContentInfo("$filename (video)")
+        showVideo(url)
+
+        val playerRef = player ?: return
+
+        suspendCancellableCoroutine<Unit> { cont ->
+            val listener = object : Player.Listener {
+                override fun onPlaybackStateChanged(state: Int) {
+                    if (state == Player.STATE_ENDED && cont.isActive) {
+                        playerRef.removeListener(this)
+                        cont.resume(Unit)
+                    }
+                }
+
+                override fun onPlayerError(error: PlaybackException) {
+                    if (cont.isActive) {
+                        playerRef.removeListener(this)
+                        cont.resume(Unit)
+                    }
+                }
+            }
+            playerRef.addListener(listener)
+
+            cont.invokeOnCancellation {
+                playerRef.removeListener(listener)
+            }
+
+            // If the player is already ended, resume immediately.
+            if (playerRef.playbackState == Player.STATE_ENDED && cont.isActive) {
+                cont.resume(Unit)
+        }
+    }
+    }
+
     private fun showImageWithTransition(url: String, typeRaw: String, durationSeconds: Double) {
+        // Hide video view and stop playback
+        if (videoView.visibility == View.VISIBLE) {
+            player?.pause()
+            videoView.visibility = View.GONE
+        }
+
         val type = typeRaw.lowercase().ifBlank { "fade" }
         val durationMs = (durationSeconds.coerceIn(0.1, 5.0) * 1000).toLong()
 
@@ -459,6 +545,8 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         retryJob?.cancel()
         playbackJob?.cancel()
+        player?.release()
+        player = null
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {

@@ -44,11 +44,13 @@ Key technical choices:
 2. HttpURLConnection for networking
 3. Glide for image loading
 4. SharedPreferences for persistent storage
+5. Media3 (ExoPlayer) for video playback
 
 Data it persists:
 1. `device_id` (generated and stored locally)
 2. Device token (issued by server)
-3. Optional cached playlist (if implemented in client)
+3. Server base URL (user-configured)
+4. Optional cached playlist (if implemented in client)
 
 Registration flow:
 1. Device POSTs `device_id` to server.
@@ -235,8 +237,9 @@ Current behavior:
 2. Auto-start on boot
 3. Long-term caching / offline playback
 4. DPAD navigation in real TV UI
+5. Video playback on real TV hardware
 
----
+--- 
 
 ## 11) Hardening Opportunities (Requires Approval)
 
@@ -268,7 +271,7 @@ Scheduling:
 2. Timezone handling for each device
 
 Playback:
-1. Per-playlist transitions (fade/slide)
+1. Per-playlist transitions (fade/slide/zoom)
 2. Local caching and offline playback
 
 Admin UI:
@@ -508,6 +511,7 @@ Playlist and scheduling behavior:
 3. Time window only matches when `start_time <= now <= end_time`.
 4. Overnight windows are not supported without code changes.
 5. Missing or invalid `days_of_week` defaults to `['all']`.
+6. Transition types supported by client: `none`, `fade`, `slide-left`, `slide-right`, `slide-up`, `slide-down`, `zoom-in`, `zoom-out`.
 
 Error handling expectations:
 1. `401` means missing headers or token.
@@ -518,6 +522,7 @@ Performance and caching:
 1. The client should cache the last known playlist if possible.
 2. If media URLs fail to load, the client should retry and skip gracefully.
 3. The server does not currently signal content versioning beyond `updated_at`.
+4. Video playback uses Media3 and advances on playback end (not timer).
 
 ---
 

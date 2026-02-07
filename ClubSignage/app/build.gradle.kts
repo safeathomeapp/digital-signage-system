@@ -41,9 +41,9 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.lifecycle.runtime.ktx)
 
-    // ExoPlayer for video playback
-    implementation(libs.exoplayer)
-    implementation(libs.exoplayer.ui)
+    // Media3 for video playback
+    implementation("androidx.media3:media3-exoplayer:1.2.1")
+    implementation("androidx.media3:media3-ui:1.2.1")
 
     // Glide for image loading
     implementation(libs.glide)
