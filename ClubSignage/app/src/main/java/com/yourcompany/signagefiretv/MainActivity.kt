@@ -4,7 +4,12 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
+import android.view.KeyEvent
+import android.view.View
+import android.widget.Button
+import android.widget.EditText
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -20,17 +25,20 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: SharedPreferences
     private lateinit var statusText: TextView
+    private lateinit var deviceInfoText: TextView
+    private lateinit var contentInfoText: TextView
     private lateinit var imageView: ImageView
+    private lateinit var settingsLayout: LinearLayout
+    private lateinit var serverIpInput: EditText
+    private lateinit var deviceNameInput: EditText
+    private lateinit var testConnectionButton: Button
+    private lateinit var saveSettingsButton: Button
 
     private var currentPlaylist: JSONArray? = null
     private var currentIndex = 0
     private var isPlaying = false
 
     private var retryJob: Job? = null
-
-    // DEV: set to your server on LAN for real devices.
-    // Emulator: http://10.0.2.2:5000
-    private val serverBaseUrl = "http://192.168.1.143:5000"
 
     private val deviceId: String by lazy {
         prefs.getString(PREF_DEVICE_ID, null)
@@ -45,13 +53,133 @@ class MainActivity : AppCompatActivity() {
 
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         statusText = findViewById(R.id.statusText)
+        deviceInfoText = findViewById(R.id.deviceInfoText)
+        contentInfoText = findViewById(R.id.contentInfoText)
         imageView = findViewById(R.id.imageView)
+        settingsLayout = findViewById(R.id.settingsLayout)
+        serverIpInput = findViewById(R.id.serverIpInput)
+        deviceNameInput = findViewById(R.id.deviceNameInput)
+        testConnectionButton = findViewById(R.id.testConnectionButton)
+        saveSettingsButton = findViewById(R.id.saveSettingsButton)
+
+        setupSettingsUi()
 
         statusText.text = "Starting…"
         ensureRegistered()
     }
 
+    private fun setupSettingsUi() {
+        val savedServer = prefs.getString(PREF_SERVER_URL, "") ?: ""
+        if (savedServer.isNotBlank()) {
+            serverIpInput.setText(savedServer.replace("http://", "").replace("https://", ""))
+        }
+
+        val savedName = prefs.getString(PREF_DEVICE_NAME, "") ?: ""
+        if (savedName.isNotBlank()) deviceNameInput.setText(savedName)
+
+        testConnectionButton.setOnClickListener { testServerConnection() }
+        saveSettingsButton.setOnClickListener { saveServerSettings() }
+
+        updateDeviceInfo()
+        updateContentInfo("Idle")
+
+        if (savedServer.isBlank()) {
+            showSettings(true)
+            statusText.text = "Set server address"
+        }
+    }
+
+    private fun updateDeviceInfo() {
+        val server = prefs.getString(PREF_SERVER_URL, "") ?: ""
+        val name = prefs.getString(PREF_DEVICE_NAME, "") ?: ""
+        val nameText = if (name.isBlank()) "Unnamed" else name
+        deviceInfoText.text = "Device: $nameText\nID: ${deviceId.take(8)}…\nServer: $server"
+    }
+
+    private fun updateContentInfo(info: String) {
+        contentInfoText.text = "Content: $info"
+    }
+
+    private fun showSettings(show: Boolean) {
+        settingsLayout.visibility = if (show) View.VISIBLE else View.GONE
+        if (show) {
+            serverIpInput.requestFocus()
+        }
+    }
+
+    private fun testServerConnection() {
+        val baseUrl = buildServerUrl(serverIpInput.text?.toString().orEmpty())
+        if (baseUrl.isBlank()) {
+            statusText.text = "Enter server address"
+            return
+        }
+
+        statusText.text = "Testing connection…"
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val url = URL("$baseUrl/api/system/status")
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 5_000
+                    readTimeout = 5_000
+                }
+                val code = conn.responseCode
+                conn.disconnect()
+
+                withContext(Dispatchers.Main) {
+                    statusText.text = if (code == 200) "Server OK" else "Server error ($code)"
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    statusText.text = "Server not reachable"
+                }
+            }
+        }
+    }
+
+    private fun saveServerSettings() {
+        val baseUrl = buildServerUrl(serverIpInput.text?.toString().orEmpty())
+        if (baseUrl.isBlank()) {
+            statusText.text = "Enter server address"
+            return
+        }
+
+        val deviceName = deviceNameInput.text?.toString()?.trim().orEmpty()
+
+        prefs.edit()
+            .putString(PREF_SERVER_URL, baseUrl)
+            .putString(PREF_DEVICE_NAME, deviceName)
+            .remove(PREF_DEVICE_TOKEN)
+            .apply()
+
+        updateDeviceInfo()
+        showSettings(false)
+        statusText.text = "Saved. Connecting…"
+        ensureRegistered()
+    }
+
+    private fun buildServerUrl(input: String): String {
+        val trimmed = input.trim().removeSuffix("/")
+        if (trimmed.isBlank()) return ""
+        return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            trimmed
+        } else {
+            "http://$trimmed"
+        }
+    }
+
+    private fun getServerBaseUrl(): String {
+        return prefs.getString(PREF_SERVER_URL, "") ?: ""
+    }
+
     private fun ensureRegistered() {
+        val serverBaseUrl = getServerBaseUrl()
+        if (serverBaseUrl.isBlank()) {
+            showSettings(true)
+            statusText.text = "Set server address"
+            return
+        }
+
         val token = prefs.getString(PREF_DEVICE_TOKEN, null)
         Log.i(TAG, "ensureRegistered: deviceId=$deviceId tokenPresent=${token != null}")
         if (token == null) registerDevice() else connectToServer()
@@ -65,6 +193,7 @@ class MainActivity : AppCompatActivity() {
         statusText.text = "Registering device…"
 
         lifecycleScope.launch(Dispatchers.IO) {
+            val serverBaseUrl = getServerBaseUrl()
             val endpoint = "$serverBaseUrl/api/register"
             Log.i(TAG, "POST $endpoint body={device_id=$deviceId}")
 
@@ -140,6 +269,7 @@ class MainActivity : AppCompatActivity() {
     private fun connectToServer() {
         lifecycleScope.launch(Dispatchers.IO) {
             val token = prefs.getString(PREF_DEVICE_TOKEN, null) ?: return@launch
+            val serverBaseUrl = getServerBaseUrl()
             val endpoint = "$serverBaseUrl/api/playlist/$deviceId"
 
             Log.i(
@@ -203,12 +333,14 @@ class MainActivity : AppCompatActivity() {
         isPlaying = true
         currentIndex = 0
         statusText.text = "Playing"
+        updateContentInfo("Playlist: ${playlist.length()} items")
         displayItem(playlist.getJSONObject(0))
     }
 
     private fun displayItem(item: JSONObject) {
         val url = item.optString("url")
         if (url.isBlank()) return
+        updateContentInfo(item.optString("filename", "Unknown"))
         Glide.with(this).load(url).into(imageView)
     }
 
@@ -225,10 +357,25 @@ class MainActivity : AppCompatActivity() {
         retryJob?.cancel()
     }
 
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_MENU) {
+            val isVisible = settingsLayout.visibility == View.VISIBLE
+            showSettings(!isVisible)
+            return true
+        }
+        if (keyCode == KeyEvent.KEYCODE_BACK && settingsLayout.visibility == View.VISIBLE) {
+            showSettings(false)
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
     companion object {
         private const val TAG = "Signage"
         private const val PREFS_NAME = "signage_prefs"
         private const val PREF_DEVICE_ID = "device_id"
         private const val PREF_DEVICE_TOKEN = "device_token"
+        private const val PREF_SERVER_URL = "server_url"
+        private const val PREF_DEVICE_NAME = "device_name"
     }
 }
