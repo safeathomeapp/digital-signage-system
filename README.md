@@ -141,7 +141,7 @@ The Android app must be switched **before deploying to real hardware**.
   - Video playback via Media3 (ExoPlayer)
   - Videos advance on playback end (not timer)
   - PIN-gated settings menu (long-press MENU/CENTER)
-  - Overlay logo support (position/opacity/size from server)
+  - Overlay logo support (position/opacity/size from server, anchored to screen corners)
 
 ### Server
 - `production_app.py`
@@ -158,7 +158,7 @@ The Android app must be switched **before deploying to real hardware**.
   - Overlay & PIN settings modal
   - Per-content analytics toggle (default every 5 plays)
   - Stats badge on assignments when analytics is enabled
-  - Toast notifications for UI actions
+  - Toast notifications for UI actions (top-center)
 
 ### Git
 - `.gitignore`
@@ -232,4 +232,4 @@ These belong to **Phase 4+** only.
 
 ---
 
-_Last updated: 2026-02-07_
+_Last updated: 2026-02-08_

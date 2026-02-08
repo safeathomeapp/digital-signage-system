@@ -1,6 +1,6 @@
 # Digital Signage System – Expanded Project Handover (Senior Notes)
 
-_Last updated: 2026-02-07_  
+_Last updated: 2026-02-08_  
 _Primary author: Senior maintainer (Codex)_  
 _Status: Stable on LAN and emulator; hardware TV validation pending_
 
@@ -229,6 +229,7 @@ Current behavior:
 1. Index page lists devices and uploads.
 2. Pending devices show a badge and “Approve” button.
 3. Media can be uploaded with schedule metadata.
+4. Toast notifications show admin actions (top-center).
 4. Overlay & PIN modal manages global logo and admin PIN.
 
 ---
@@ -526,7 +527,8 @@ Playlist and scheduling behavior:
 5. Missing or invalid `days_of_week` defaults to `['all']`.
 6. Transition types supported by client: `none`, `fade`, `slide-left`, `slide-right`, `slide-up`, `slide-down`, `zoom-in`, `zoom-out`.
 7. Overlay config is delivered at top-level in playlist response under `overlay`.
-8. Playlist items include `assignment_id` for analytics correlation.
+8. Overlay logo is anchored to screen corners (not image content); aspect ratio preserved.
+9. Playlist items include `assignment_id` for analytics correlation.
 
 Error handling expectations:
 1. `401` means missing headers or token.
