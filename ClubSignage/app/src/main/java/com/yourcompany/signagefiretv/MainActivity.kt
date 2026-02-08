@@ -8,15 +8,24 @@ import android.app.AlertDialog
 import android.text.InputType
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import android.graphics.drawable.Drawable
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.DataSource
+import com.bumptech.glide.load.engine.GlideException
+import com.bumptech.glide.request.RequestListener
+import com.bumptech.glide.request.target.Target
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.PlaybackException
@@ -62,7 +71,7 @@ class MainActivity : AppCompatActivity() {
     private var overlaySize = 0.1f
     private var overlayHideOnVideo = true
     private var overlayUrl: String? = null
-    private val overlayMarginDp = 16
+    private val overlayMarginDp = 0
 
     private val deviceId: String by lazy {
         prefs.getString(PREF_DEVICE_ID, null)
@@ -74,6 +83,13 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // Allow content (including overlay) to draw edge-to-edge.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
 
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         statusText = findViewById(R.id.statusText)
@@ -335,22 +351,36 @@ class MainActivity : AppCompatActivity() {
 
                 withContext(Dispatchers.Main) {
                     if (code == 200 && !responseText.isNullOrBlank()) {
-                        currentPlaylist = try {
-                            val obj = JSONObject(responseText)
-                            val overlayObj = obj.optJSONObject("overlay")
-                            if (overlayObj != null) {
-                                overlayEnabled = overlayObj.optBoolean("enabled", false)
-                                overlayPosition = overlayObj.optString("position", "top-right")
-                                overlayOpacity = overlayObj.optDouble("opacity", 0.6).toFloat()
-                                overlaySize = overlayObj.optDouble("size", 0.1).toFloat()
-                                overlayHideOnVideo = overlayObj.optBoolean("hide_on_video", true)
-                                overlayUrl = overlayObj.optString("url", "")
-                                updateOverlayAppearance()
+                        val trimmed = responseText.trim()
+                        currentPlaylist = if (trimmed.startsWith("[")) {
+                            JSONArray(trimmed)
+                        } else {
+                            try {
+                                val obj = JSONObject(trimmed)
+                                val overlayObj = obj.optJSONObject("overlay")
+                                if (overlayObj != null) {
+                                    overlayEnabled = overlayObj.optBoolean("enabled", false)
+                                    overlayPosition = overlayObj.optString("position", "top-right")
+                                    overlayOpacity = overlayObj.optDouble("opacity", 0.6).toFloat()
+                                    overlaySize = overlayObj.optDouble("size", 0.1).toFloat()
+                                    overlayHideOnVideo = overlayObj.optBoolean("hide_on_video", true)
+                                    overlayUrl = overlayObj.optString("url", "")
+                                    try {
+                                        updateOverlayAppearance()
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Overlay update failed", e)
+                                    }
+                                }
+                                obj.getJSONArray("playlist")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to parse playlist response", e)
+                                null
                             }
-                            obj.getJSONArray("playlist")
-                        } catch (_: Exception) {
-                            // Backward compatibility if server ever returns a raw array
-                            JSONArray(responseText)
+                        }
+                        if (currentPlaylist == null) {
+                            statusText.text = "Playlist parse error"
+                            showSettings(true)
+                            return@withContext
                         }
                         startPlayback()
                     } else {
@@ -412,6 +442,7 @@ class MainActivity : AppCompatActivity() {
         updateContentInfo("$filename (image)")
         showImageWithTransition(url, transitionType, transitionDuration)
         updateOverlayVisibility(isVideo = false)
+        overlayLogo.post { updateOverlayPosition() }
     }
 
     private fun initPlayer() {
@@ -570,49 +601,69 @@ class MainActivity : AppCompatActivity() {
         }
 
         overlayLogo.alpha = overlayOpacity.coerceIn(0.0f, 1.0f)
+        overlayLogo.setPadding(0, 0, 0, 0)
+        overlayLogo.translationX = 0f
+        overlayLogo.translationY = 0f
+        overlayLogo.visibility = View.VISIBLE
 
         val screenWidth = resources.displayMetrics.widthPixels
-        val sizePx = (screenWidth * overlaySize.coerceIn(0.05f, 0.3f)).toInt()
-        overlayLogo.layoutParams.width = sizePx
-        overlayLogo.layoutParams.height = sizePx
+        val targetWidthPx = (screenWidth * overlaySize.coerceIn(0.05f, 0.3f)).toInt()
+        overlayLogo.layoutParams.width = targetWidthPx
+        overlayLogo.layoutParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
 
         val lp = overlayLogo.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
-        val marginPx = (overlayMarginDp * resources.displayMetrics.density).toInt()
-        lp.setMargins(marginPx, marginPx, marginPx, marginPx)
-        lp.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
-        lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
-        lp.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
-        lp.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
-
-        when (overlayPosition) {
+        lp.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+        lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+        lp.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+        lp.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+        lp.setMargins(0, 0, 0, 0)
+                when (overlayPosition) {
             "top-left" -> {
                 lp.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
                 lp.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
                 lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
                 lp.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                overlayLogo.scaleType = ImageView.ScaleType.FIT_START
             }
             "top-right" -> {
                 lp.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
                 lp.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
                 lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
                 lp.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                overlayLogo.scaleType = ImageView.ScaleType.FIT_END
             }
             "bottom-left" -> {
                 lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
                 lp.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
                 lp.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
                 lp.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                overlayLogo.scaleType = ImageView.ScaleType.FIT_START
             }
             "bottom-right" -> {
                 lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
                 lp.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
                 lp.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
                 lp.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                overlayLogo.scaleType = ImageView.ScaleType.FIT_END
+            }
+            else -> {
+                lp.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                lp.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                overlayLogo.scaleType = ImageView.ScaleType.FIT_END
             }
         }
 
         overlayLogo.layoutParams = lp
-        Glide.with(this).load(overlayUrl).into(overlayLogo)
+        // Apply constraints directly without ConstraintSet (avoids crashes if any child lacks an id)
+        overlayLogo.requestLayout()
+        overlayLogo.bringToFront()
+        overlayLogo.elevation = 10f
+        Log.i(TAG, "Overlay url=$overlayUrl pos=$overlayPosition size=${targetWidthPx}px opacity=$overlayOpacity enabled=$overlayEnabled hideOnVideo=$overlayHideOnVideo")
+        Glide.with(this)
+            .load(overlayUrl)
+            .into(overlayLogo)
+        overlayLogo.post { updateOverlaySizeFromDrawable() }
+        overlayLogo.post { updateOverlayPosition() }
     }
 
     private fun updateOverlayVisibility(isVideo: Boolean) {
@@ -625,8 +676,40 @@ class MainActivity : AppCompatActivity() {
             return
         }
         overlayLogo.visibility = View.VISIBLE
+        overlayLogo.bringToFront()
+        overlayLogo.elevation = 10f
+        overlayLogo.post { updateOverlayPosition() }
     }
 
+    private fun updateOverlayPosition() {
+        if (overlayLogo.visibility != View.VISIBLE) return
+        val root = window.decorView
+        val rootW = root.width
+        val rootH = root.height
+        if (rootW <= 0 || rootH <= 0) return
+        val w = overlayLogo.width
+        val h = overlayLogo.height
+        if (w <= 0 || h <= 0) return
+        val x = if (overlayPosition.contains("left")) 0f else (rootW - w).toFloat()
+        val y = if (overlayPosition.contains("top")) 0f else (rootH - h).toFloat()
+        overlayLogo.x = x
+        overlayLogo.y = y
+    }
+
+
+    private fun updateOverlaySizeFromDrawable() {
+        val drawable = overlayLogo.drawable ?: return
+        if (drawable.intrinsicWidth <= 0 || drawable.intrinsicHeight <= 0) return
+        val screenWidth = resources.displayMetrics.widthPixels
+        val targetWidthPx = (screenWidth * overlaySize.coerceIn(0.05f, 0.3f)).toInt()
+        val aspect = drawable.intrinsicHeight.toFloat() / drawable.intrinsicWidth.toFloat()
+        val targetHeightPx = (targetWidthPx * aspect).toInt().coerceAtLeast(1)
+        overlayLogo.layoutParams.width = targetWidthPx
+        overlayLogo.layoutParams.height = targetHeightPx
+        overlayLogo.requestLayout()
+    }
+
+    
     private fun sendPlaybackEvent(
         item: JSONObject,
         startedMs: Long,
