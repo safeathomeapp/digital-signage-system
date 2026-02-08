@@ -5,7 +5,7 @@ from flask import Flask, request, jsonify, render_template, redirect
 from werkzeug.utils import secure_filename
 import sqlite3
 import os
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 import json
 import socket
 import logging
@@ -291,6 +291,9 @@ def init_db():
             play_order INTEGER DEFAULT 0,
             transition_type TEXT DEFAULT "fade",
             transition_duration REAL DEFAULT 1.0,
+            analytics_enabled BOOLEAN DEFAULT 0,
+            analytics_sample_rate INTEGER DEFAULT 5,
+            analytics_counter INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (media_id) REFERENCES media (id),
             FOREIGN KEY (device_id) REFERENCES devices (device_id)
@@ -300,6 +303,18 @@ def init_db():
         conn.execute('ALTER TABLE device_content ADD COLUMN video_duration INTEGER')
     except sqlite3.OperationalError:
         pass  # Column already exists
+    try:
+        conn.execute('ALTER TABLE device_content ADD COLUMN analytics_enabled BOOLEAN DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute('ALTER TABLE device_content ADD COLUMN analytics_sample_rate INTEGER DEFAULT 5')
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute('ALTER TABLE device_content ADD COLUMN analytics_counter INTEGER DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass
         
     # Analytics table
     conn.execute('''
@@ -307,6 +322,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             device_id TEXT NOT NULL,
             media_id INTEGER,
+            assignment_id INTEGER,
             filename TEXT NOT NULL,
             file_type TEXT NOT NULL,
             started_at TIMESTAMP NOT NULL,
@@ -317,6 +333,10 @@ def init_db():
             FOREIGN KEY (media_id) REFERENCES media (id)
         )
     ''')
+    try:
+        conn.execute('ALTER TABLE playback_analytics ADD COLUMN assignment_id INTEGER')
+    except sqlite3.OperationalError:
+        pass  # Column already exists
     
     conn.commit()
     conn.close()
@@ -332,7 +352,7 @@ def update_content_timestamp():
     """Update the global timestamp when content changes"""
     global LAST_CONTENT_UPDATE
     LAST_CONTENT_UPDATE = time.time()
-    logger.info(f"Content timestamp updated: {LAST_CONTENT_UPDATE}")
+    logger.debug(f"Content timestamp updated: {LAST_CONTENT_UPDATE}")
     
 # Main routes
 @app.route('/')
@@ -498,6 +518,7 @@ def assign_content_with_schedule():
         data = request.get_json()
         device_id = data.get('device_id')
         media_id = data.get('media_id')
+        assignment_id = data.get('assignment_id')
         
         if not device_id or not media_id:
             return jsonify({'error': 'Device ID and Media ID required'}), 400
@@ -532,7 +553,7 @@ def assign_content_with_schedule():
         days_json = json.dumps(days_list)
         
         # Create new assignment with full scheduling
-        conn.execute('''
+        cursor = conn.execute('''
             INSERT INTO device_content 
             (device_id, media_id, display_duration, video_duration, days_of_week, 
              start_date, end_date, start_time, end_time, play_order, is_active)
@@ -549,12 +570,13 @@ def assign_content_with_schedule():
             data.get('end_time'),
             next_order
         ))
+        assignment_id = cursor.lastrowid
         
         conn.commit()
         conn.close()
         
         logger.info(f"Content {media_id} assigned to device {device_id} with scheduling")
-        return jsonify({'success': 'Content assigned with scheduling'})
+        return jsonify({'success': 'Content assigned with scheduling', 'assignment_id': assignment_id})
     
     except Exception as e:
         logger.error(f"Error assigning content with schedule: {e}")
@@ -837,8 +859,9 @@ def get_device_content(device_id):
         cursor = conn.execute('''
             SELECT dc.id as assignment_id, dc.media_id, dc.display_duration, dc.play_order,
                    dc.days_of_week, dc.start_date, dc.end_date, dc.start_time, dc.end_time,
-                   dc.is_active, dc.transition_type, dc.transition_duration,
-                   m.filename, m.original_name, m.file_type, m.video_duration
+                     dc.is_active, dc.transition_type, dc.transition_duration,
+                     dc.analytics_enabled, dc.analytics_sample_rate,
+                     m.filename, m.original_name, m.file_type, m.video_duration
             FROM device_content dc
             JOIN media m ON dc.media_id = m.id
             WHERE dc.device_id = ?
@@ -847,24 +870,26 @@ def get_device_content(device_id):
 
         content = []
         for row in cursor.fetchall():
-            content.append({
-                'assignment_id': row[0],
-                'media_id': row[1],
-                'display_duration': row[2],
-                'play_order': row[3] or 0,
-                'days_of_week': row[4],
-                'start_date': row[5],
-                'end_date': row[6],
-                'start_time': row[7],
-                'end_time': row[8],
-                'is_paused': not bool(row[9]),
-                'transition_type': row[10] or 'fade',
-                'transition_duration': row[11] or 1.0,
-                'filename': row[12],
-                'original_name': row[13],
-                'file_type': row[14],
-                'video_duration': row[15]
-            })
+                content.append({
+                    'assignment_id': row[0],
+                    'media_id': row[1],
+                    'display_duration': row[2],
+                    'play_order': row[3] or 0,
+                    'days_of_week': row[4],
+                    'start_date': row[5],
+                    'end_date': row[6],
+                    'start_time': row[7],
+                    'end_time': row[8],
+                    'is_paused': not bool(row[9]),
+                    'transition_type': row[10] or 'fade',
+                    'transition_duration': row[11] or 1.0,
+                    'analytics_enabled': bool(row[12]),
+                    'analytics_sample_rate': row[13] or 5,
+                    'filename': row[14],
+                    'original_name': row[15],
+                    'file_type': row[16],
+                    'video_duration': row[17]
+                })
         
         conn.close()
         return jsonify(content)
@@ -1148,9 +1173,6 @@ def activate_device(device_id):
 @app.route('/api/playlist/<device_id>')
 @require_device_auth
 def get_playlist(device_id):
-    logger.info("HIT get_playlist() production_app.py build=2026-02-07 A")
-    print("HIT get_playlist production_app.py build=2026-02-07 A")
-    
     try:
         conn = get_db_connection()
 
@@ -1168,9 +1190,11 @@ def get_playlist(device_id):
         current_day = today.strftime('%a').lower()
 
         cursor = conn.execute('''
-            SELECT dc.media_id, m.filename, m.file_type, dc.display_duration,
+            SELECT dc.id as assignment_id,
+                   dc.media_id, m.filename, m.file_type, dc.display_duration,
                    dc.days_of_week, dc.start_date, dc.end_date, dc.start_time, dc.end_time,
-                   dc.play_order, dc.transition_type, dc.transition_duration
+                   dc.play_order, dc.transition_type, dc.transition_duration,
+                   dc.analytics_enabled, dc.analytics_sample_rate
             FROM device_content dc
             JOIN media m ON dc.media_id = m.id
             WHERE dc.device_id = ?
@@ -1182,9 +1206,10 @@ def get_playlist(device_id):
 
         playlist = []
         for row in cursor.fetchall():
-            (media_id, filename, file_type, duration,
+            (assignment_id, media_id, filename, file_type, duration,
              days_json, start_date, end_date, start_time_str, end_time_str,
-             play_order, transition_type, transition_duration) = row
+             play_order, transition_type, transition_duration,
+             analytics_enabled, analytics_sample_rate) = row
 
             # Days
             try:
@@ -1208,6 +1233,7 @@ def get_playlist(device_id):
 
             if day_matches and time_matches:
                 playlist.append({
+                    'assignment_id': assignment_id,
                     'id': media_id,
                     'filename': filename,
                     'file_type': file_type,
@@ -1215,6 +1241,8 @@ def get_playlist(device_id):
                     'play_order': play_order or 0,
                     'transition_type': transition_type or 'fade',
                     'transition_duration': transition_duration or 1.0,
+                    'analytics_enabled': bool(analytics_enabled),
+                    'analytics_sample_rate': analytics_sample_rate or 5,
                     'url': f'http://{SERVER_IP}:5000/uploads/{filename}'
                 })
 
@@ -1426,11 +1454,19 @@ def update_device_content_schedule(assignment_id):
             days_list = ['all']
         days_json = json.dumps(days_list)
         
+        analytics_enabled = bool(data.get('analytics_enabled', False))
+        analytics_sample_rate = int(data.get('analytics_sample_rate', 5) or 5)
+        if analytics_sample_rate < 1:
+            analytics_sample_rate = 1
+        if analytics_sample_rate > 50:
+            analytics_sample_rate = 50
+
         # Update device content record INCLUDING TRANSITION FIELDS
         conn.execute('''
             UPDATE device_content 
             SET days_of_week = ?, display_duration = ?, start_time = ?, end_time = ?, 
-                start_date = ?, end_date = ?, transition_type = ?, transition_duration = ?
+                start_date = ?, end_date = ?, transition_type = ?, transition_duration = ?,
+                analytics_enabled = ?, analytics_sample_rate = ?
             WHERE id = ?
         ''', (
             days_json,
@@ -1441,6 +1477,8 @@ def update_device_content_schedule(assignment_id):
             data.get('end_date'),
             data.get('transition_type', 'fade'),
             data.get('transition_duration', 1.0),
+            1 if analytics_enabled else 0,
+            analytics_sample_rate,
             assignment_id
         ))
         
@@ -1534,6 +1572,7 @@ def ingest_playback_event():
         device_id = (request.headers.get("X-Device-Id") or "").strip()
 
         media_id = data.get('media_id')
+        assignment_id = data.get('assignment_id')
         filename = data.get('filename', '')
         file_type = data.get('file_type', '')
         started_at = data.get('started_at')
@@ -1542,25 +1581,55 @@ def ingest_playback_event():
         actual_duration = data.get('actual_duration')
         completed = bool(data.get('completed', True))
 
-        if not media_id or not filename or not file_type:
-            return jsonify({'error': 'media_id, filename, file_type required'}), 400
+        if not media_id or not filename or not file_type or not assignment_id:
+            return jsonify({'error': 'media_id, assignment_id, filename, file_type required'}), 400
 
         # Normalize timestamps if missing
-        now_iso = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+        now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
         if not started_at:
             started_at = now_iso
         if not ended_at:
             ended_at = now_iso
 
         conn = sqlite3.connect('signage.db')
+
+        # Check analytics settings for this assignment
+        row = conn.execute('''
+            SELECT analytics_enabled, analytics_sample_rate, analytics_counter
+            FROM device_content
+            WHERE id = ? AND device_id = ?
+        ''', (assignment_id, device_id)).fetchone()
+
+        if not row:
+            conn.close()
+            return jsonify({'error': 'assignment_not_found'}), 400
+
+        analytics_enabled, analytics_sample_rate, analytics_counter = row
+        if not bool(analytics_enabled):
+            conn.close()
+            return jsonify({'success': True, 'skipped': 'disabled'}), 200
+
+        sample_rate = int(analytics_sample_rate or 1)
+        if sample_rate < 1:
+            sample_rate = 1
+
+        new_counter = int(analytics_counter or 0) + 1
+        conn.execute('UPDATE device_content SET analytics_counter = ? WHERE id = ?', (new_counter, assignment_id))
+
+        if sample_rate > 1 and (new_counter % sample_rate) != 0:
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True, 'skipped': 'sampled'}), 200
+
         conn.execute('''
             INSERT INTO playback_analytics
-            (device_id, media_id, filename, file_type, started_at, ended_at,
+            (device_id, media_id, assignment_id, filename, file_type, started_at, ended_at,
              planned_duration, actual_duration, completed)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             device_id,
             media_id,
+            assignment_id,
             filename,
             file_type,
             started_at,

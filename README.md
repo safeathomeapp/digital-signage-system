@@ -156,6 +156,9 @@ The Android app must be switched **before deploying to real hardware**.
   - Pending vs Active device badges
   - Approve button wired to backend
   - Overlay & PIN settings modal
+  - Per-content analytics toggle (default every 5 plays)
+  - Stats badge on assignments when analytics is enabled
+  - Toast notifications for UI actions
 
 ### Git
 - `.gitignore`
@@ -188,6 +191,7 @@ Everything has been validated on:
    - Media playback (images + video)
    - Transitions
    - Overlay logo positioning/opacity
+   - Analytics toggle + sampling (default every 5 plays)
 4. Validate:
    - Boot auto-start
    - Offline cache fallback

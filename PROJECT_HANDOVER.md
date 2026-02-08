@@ -276,6 +276,7 @@ Playback:
 1. Per-playlist transitions (fade/slide/zoom)
 2. Local caching and offline playback
 3. Overlay logo (per-device position/opacity/size, optional hide on video)
+4. Analytics toggle per content assignment with sampling (default every 5 plays)
 
 Admin UI:
 1. Bulk upload
@@ -505,7 +506,7 @@ Field notes (practical usage):
 2. `device_content.days_of_week` stores JSON list like `['all']` or `['mon','wed']`.
 3. `device_content.start_time` and `end_time` only support same-day windows.
 4. `media.video_duration` is optional and used to bound display duration for videos.
-5. `playback_analytics` is reserved for future use, not currently written by client.
+5. `playback_analytics` is populated when analytics is enabled; sampling defaults to every 5 plays.
 
 ---
 
@@ -525,6 +526,7 @@ Playlist and scheduling behavior:
 5. Missing or invalid `days_of_week` defaults to `['all']`.
 6. Transition types supported by client: `none`, `fade`, `slide-left`, `slide-right`, `slide-up`, `slide-down`, `zoom-in`, `zoom-out`.
 7. Overlay config is delivered at top-level in playlist response under `overlay`.
+8. Playlist items include `assignment_id` for analytics correlation.
 
 Error handling expectations:
 1. `401` means missing headers or token.

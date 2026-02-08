@@ -62,6 +62,7 @@ class MainActivity : AppCompatActivity() {
     private var overlaySize = 0.1f
     private var overlayHideOnVideo = true
     private var overlayUrl: String? = null
+    private val overlayMarginDp = 16
 
     private val deviceId: String by lazy {
         prefs.getString(PREF_DEVICE_ID, null)
@@ -576,6 +577,8 @@ class MainActivity : AppCompatActivity() {
         overlayLogo.layoutParams.height = sizePx
 
         val lp = overlayLogo.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+        val marginPx = (overlayMarginDp * resources.displayMetrics.density).toInt()
+        lp.setMargins(marginPx, marginPx, marginPx, marginPx)
         lp.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
         lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
         lp.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
@@ -637,6 +640,12 @@ class MainActivity : AppCompatActivity() {
         val mediaId = item.optInt("id", 0)
         if (mediaId <= 0) return
 
+        val analyticsEnabled = item.optBoolean("analytics_enabled", false)
+        if (!analyticsEnabled) return
+
+        val assignmentId = item.optInt("assignment_id", 0)
+        if (assignmentId <= 0) return
+
         val filename = item.optString("filename", "")
         val fileType = item.optString("file_type", "")
         val token = prefs.getString(PREF_DEVICE_TOKEN, null) ?: return
@@ -660,6 +669,7 @@ class MainActivity : AppCompatActivity() {
 
                 val body = JSONObject().apply {
                     put("media_id", mediaId)
+                    put("assignment_id", assignmentId)
                     put("filename", filename)
                     put("file_type", fileType)
                     put("started_at", startedIso)
