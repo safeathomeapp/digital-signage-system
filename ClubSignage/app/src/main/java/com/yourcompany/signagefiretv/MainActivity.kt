@@ -64,6 +64,7 @@ class MainActivity : AppCompatActivity() {
 
     private var retryJob: Job? = null
     private var playbackJob: Job? = null
+    private var refreshJob: Job? = null
 
     private var overlayEnabled = false
     private var deviceOverlayEnabled = false
@@ -77,6 +78,10 @@ class MainActivity : AppCompatActivity() {
     private var deviceOverlayHideOnVideo = true
     private var overlayUrl: String? = null
     private val overlayMarginDp = 0
+
+    private var lastUpdateToken: Long = 0L
+    private var currentAssignmentId: Int = 0
+    private var lastPlayedAssignmentId: Int = 0
 
     private val deviceId: String by lazy {
         prefs.getString(PREF_DEVICE_ID, null)
@@ -356,43 +361,15 @@ class MainActivity : AppCompatActivity() {
 
                 withContext(Dispatchers.Main) {
                     if (code == 200 && !responseText.isNullOrBlank()) {
-                        val trimmed = responseText.trim()
-                        currentPlaylist = if (trimmed.startsWith("[")) {
-                            JSONArray(trimmed)
-                        } else {
-                            try {
-                                val obj = JSONObject(trimmed)
-                                val overlayObj = obj.optJSONObject("overlay")
-                                if (overlayObj != null) {
-                                    overlayEnabled = overlayObj.optBoolean("enabled", false)
-                                    overlayPosition = overlayObj.optString("position", "top-right")
-                                    overlayOpacity = overlayObj.optDouble("opacity", 0.6).toFloat()
-                                    overlaySize = overlayObj.optDouble("size", 0.1).toFloat()
-                                    overlayHideOnVideo = overlayObj.optBoolean("hide_on_video", true)
-                                    overlayUrl = overlayObj.optString("url", "")
-                                    deviceOverlayEnabled = overlayEnabled
-                                    deviceOverlayPosition = overlayPosition
-                                    deviceOverlayOpacity = overlayOpacity
-                                    deviceOverlaySize = overlaySize
-                                    deviceOverlayHideOnVideo = overlayHideOnVideo
-                                    try {
-                                        updateOverlayAppearance()
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "Overlay update failed", e)
-                                    }
-                                }
-                                obj.getJSONArray("playlist")
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Failed to parse playlist response", e)
-                                null
-                            }
-                        }
-                        if (currentPlaylist == null) {
+                        val playlist = parsePlaylistResponse(responseText)
+                        if (playlist == null) {
                             statusText.text = "Playlist parse error"
                             showSettings(true)
                             return@withContext
                         }
+                        currentPlaylist = playlist
                         startPlayback()
+                        startRefreshPolling()
                     } else {
                         // If token invalid/expired or device not approved, force re-register flow
                         clearDeviceToken()
@@ -412,6 +389,148 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun parsePlaylistResponse(responseText: String): JSONArray? {
+        val trimmed = responseText.trim()
+        return if (trimmed.startsWith("[")) {
+            JSONArray(trimmed)
+        } else {
+            try {
+                val obj = JSONObject(trimmed)
+                val overlayObj = obj.optJSONObject("overlay")
+                if (overlayObj != null) {
+                    overlayEnabled = overlayObj.optBoolean("enabled", false)
+                    overlayPosition = overlayObj.optString("position", "top-right")
+                    overlayOpacity = overlayObj.optDouble("opacity", 0.6).toFloat()
+                    overlaySize = overlayObj.optDouble("size", 0.1).toFloat()
+                    overlayHideOnVideo = overlayObj.optBoolean("hide_on_video", true)
+                    overlayUrl = overlayObj.optString("url", "")
+                    deviceOverlayEnabled = overlayEnabled
+                    deviceOverlayPosition = overlayPosition
+                    deviceOverlayOpacity = overlayOpacity
+                    deviceOverlaySize = overlaySize
+                    deviceOverlayHideOnVideo = overlayHideOnVideo
+                    try {
+                        updateOverlayAppearance()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Overlay update failed", e)
+                    }
+                }
+                obj.getJSONArray("playlist")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to parse playlist response", e)
+                null
+            }
+        }
+    }
+
+    private fun startRefreshPolling() {
+        refreshJob?.cancel()
+        refreshJob = lifecycleScope.launch {
+            while (isActive) {
+                delay(120_000)
+                checkForUpdates()
+            }
+        }
+    }
+
+    private fun checkForUpdates() {
+        val serverBaseUrl = getServerBaseUrl()
+        if (serverBaseUrl.isBlank()) return
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val url = URL("$serverBaseUrl/api/system/last-update")
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 5_000
+                    readTimeout = 5_000
+                }
+                val code = conn.responseCode
+                val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                val responseText = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                conn.disconnect()
+
+                if (code != 200) return@launch
+                val updateToken = try {
+                    JSONObject(responseText).optLong("last_update", 0L)
+                } catch (_: Exception) {
+                    0L
+                }
+                if (updateToken > lastUpdateToken) {
+                    lastUpdateToken = updateToken
+                    refreshPlaylist()
+                }
+            } catch (_: Exception) {
+                // Best-effort only
+            }
+        }
+    }
+
+    private fun refreshPlaylist() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val token = prefs.getString(PREF_DEVICE_TOKEN, null) ?: return@launch
+            val serverBaseUrl = getServerBaseUrl()
+            val endpoint = "$serverBaseUrl/api/playlist/$deviceId"
+
+            try {
+                val url = URL(endpoint)
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    setRequestProperty("X-Device-Id", deviceId)
+                    setRequestProperty("X-Device-Token", token)
+                    setRequestProperty("Accept", "application/json")
+                    connectTimeout = 10_000
+                    readTimeout = 10_000
+                }
+
+                val code = conn.responseCode
+                val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                val responseText = stream?.bufferedReader()?.use { it.readText() }
+                conn.disconnect()
+
+                if (code != 200 || responseText.isNullOrBlank()) return@launch
+                val playlist = parsePlaylistResponse(responseText) ?: return@launch
+
+                withContext(Dispatchers.Main) {
+                    applyPlaylistUpdate(playlist)
+                }
+            } catch (_: Exception) {
+                // Best-effort only
+            }
+        }
+    }
+
+    private fun applyPlaylistUpdate(newPlaylist: JSONArray) {
+        if (newPlaylist.length() == 0) {
+            currentPlaylist = newPlaylist
+            statusText.text = "No content"
+            return
+        }
+
+        val anchorId = if (currentAssignmentId > 0) currentAssignmentId else lastPlayedAssignmentId
+        val nextIndex = if (anchorId > 0) {
+            findAssignmentIndex(newPlaylist, anchorId)
+        } else {
+            -1
+        }
+
+        currentPlaylist = newPlaylist
+        currentIndex = if (nextIndex >= 0) {
+            (nextIndex + 1) % newPlaylist.length()
+        } else {
+            0
+        }
+        updateContentInfo("Playlist updated (${newPlaylist.length()} items)")
+    }
+
+    private fun findAssignmentIndex(list: JSONArray, assignmentId: Int): Int {
+        for (i in 0 until list.length()) {
+            val item = list.optJSONObject(i) ?: continue
+            if (item.optInt("assignment_id", 0) == assignmentId) return i
+        }
+        return -1
+    }
+
     private fun startPlayback() {
         val playlist = currentPlaylist ?: return
         if (playlist.length() == 0) {
@@ -428,6 +547,7 @@ class MainActivity : AppCompatActivity() {
             while (isActive && isPlaying) {
                 val item = playlist.getJSONObject(currentIndex)
                 val fileType = item.optString("file_type", "image")
+                currentAssignmentId = item.optInt("assignment_id", 0)
                 if (fileType.equals("video", ignoreCase = true)) {
                     playVideoAndAwaitEnd(item)
                 } else {
@@ -438,6 +558,7 @@ class MainActivity : AppCompatActivity() {
                     val endedAt = System.currentTimeMillis()
                     sendPlaybackEvent(item, startedAt, endedAt, plannedSeconds = (delayMs / 1000).toInt(), completed = true)
                 }
+                lastPlayedAssignmentId = currentAssignmentId
                 currentIndex = (currentIndex + 1) % playlist.length()
             }
         }
@@ -828,6 +949,7 @@ private fun updateOverlayAppearance() {
         super.onDestroy()
         retryJob?.cancel()
         playbackJob?.cancel()
+        refreshJob?.cancel()
         player?.release()
         player = null
     }
@@ -891,7 +1013,8 @@ private fun updateOverlayAppearance() {
                 conn.disconnect()
 
                 val isValid = try {
-                    JSONObject(responseText).optBoolean("valid", false)
+                    val obj = JSONObject(responseText)
+                    obj.optBoolean("valid", obj.optBoolean("success", false))
                 } catch (_: Exception) {
                     false
                 }

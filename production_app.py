@@ -47,6 +47,9 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def _now_iso() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
 def _get_setting(key: str, default: str | None = None) -> str | None:
     try:
         conn = get_db_connection()
@@ -802,6 +805,7 @@ def update_device(device_id):
             WHERE device_id = ?
         ''', (custom_name, location, device_id))
         conn.commit()
+        update_content_timestamp()
         conn.close()
 
         logger.info(f"Device {device_id} updated: name='{custom_name}', location='{location}'")
@@ -838,6 +842,7 @@ def update_device_overlay(device_id):
             device_id
         ))
         conn.commit()
+        update_content_timestamp()
         conn.close()
 
         return jsonify({'success': True})
@@ -854,7 +859,7 @@ def activate_device(device_id):
         conn = sqlite3.connect('signage.db')
         cur = conn.execute(
             'UPDATE devices SET is_active = 1, last_checkin = ? WHERE device_id = ?',
-            (datetime.now(), device_id)
+            (_now_iso(), device_id)
         )
         conn.commit()
         conn.close()
@@ -1039,6 +1044,7 @@ def toggle_device_content_pause(assignment_id):
         new_status = 0 if row[0] else 1
         conn.execute('UPDATE device_content SET is_active = ? WHERE id = ?', (new_status, assignment_id))
         conn.commit()
+        update_content_timestamp()
         conn.close()
 
         return jsonify({'success': True, 'is_paused': not bool(new_status)})
@@ -1089,6 +1095,14 @@ def get_system_settings():
     except Exception as e:
         logger.error(f"System settings error: {e}")
         return jsonify({'error': 'Failed to get settings'}), 500
+
+@app.route('/api/system/last-update')
+def get_system_last_update():
+    try:
+        return jsonify({'last_update': int(LAST_CONTENT_UPDATE * 1000)})
+    except Exception as e:
+        logger.error(f"System last-update error: {e}")
+        return jsonify({'error': 'Failed to get last update'}), 500
 
 @app.route('/api/system/overlay-logo', methods=['POST'])
 @require_admin
@@ -1301,7 +1315,7 @@ def get_playlist(device_id):
             UPDATE devices
             SET last_checkin = ?, ip_address = ?
             WHERE device_id = ?
-        ''', (datetime.now(), request.remote_addr, device_id))
+        ''', (_now_iso(), request.remote_addr, device_id))
         conn.commit()
 
         now = datetime.now()
@@ -1492,7 +1506,7 @@ def register_device():
             conn.execute('''
                 INSERT INTO devices (device_id, device_name, last_checkin, is_active, ip_address)
                 VALUES (?, ?, ?, 0, ?)
-            ''', (device_id, f'Device {device_id[:8]}', datetime.now(), request.remote_addr))
+            ''', (device_id, f'Device {device_id[:8]}', _now_iso(), request.remote_addr))
             conn.commit()
             conn.close()
             return jsonify({
@@ -1504,7 +1518,7 @@ def register_device():
         if int(row['is_active']) != 1:
             conn.execute(
                 'UPDATE devices SET last_checkin = ?, ip_address = ? WHERE device_id = ?',
-                (datetime.now(), request.remote_addr, device_id)
+                (_now_iso(), request.remote_addr, device_id)
             )
             conn.commit()
             conn.close()
@@ -1516,7 +1530,7 @@ def register_device():
 
         conn.execute(
             'UPDATE devices SET last_checkin = ?, ip_address = ? WHERE device_id = ?',
-            (datetime.now(), request.remote_addr, device_id)
+            (_now_iso(), request.remote_addr, device_id)
         )
         conn.commit()
         conn.close()
