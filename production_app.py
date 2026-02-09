@@ -626,6 +626,7 @@ def assign_content_with_schedule():
         assignment_id = cursor.lastrowid
         
         conn.commit()
+        update_content_timestamp()
         conn.close()
         
         logger.info(f"Content {media_id} assigned to device {device_id} with scheduling")
@@ -862,6 +863,7 @@ def activate_device(device_id):
             (_now_iso(), device_id)
         )
         conn.commit()
+        update_content_timestamp()
         conn.close()
 
         if cur.rowcount == 0:
@@ -1319,9 +1321,9 @@ def get_playlist(device_id):
         conn.commit()
 
         now = datetime.now()
-        today = now.date()
+        today = now.date().isoformat()
         current_time = now.time()
-        current_day = today.strftime('%a').lower()
+        current_day = now.strftime('%a').lower()
 
         cursor = conn.execute('''
             SELECT dc.id as assignment_id, dc.media_id, m.filename, m.file_type,

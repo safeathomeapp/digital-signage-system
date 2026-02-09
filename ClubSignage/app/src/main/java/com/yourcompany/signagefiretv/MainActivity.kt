@@ -3,6 +3,7 @@ package com.yourcompany.signagefiretv
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.os.Looper
 import android.util.Log
 import android.app.AlertDialog
 import android.text.InputType
@@ -368,6 +369,7 @@ class MainActivity : AppCompatActivity() {
                             return@withContext
                         }
                         currentPlaylist = playlist
+                        updateOverlayAppearance()
                         startPlayback()
                         startRefreshPolling()
                     } else {
@@ -409,11 +411,6 @@ class MainActivity : AppCompatActivity() {
                     deviceOverlayOpacity = overlayOpacity
                     deviceOverlaySize = overlaySize
                     deviceOverlayHideOnVideo = overlayHideOnVideo
-                    try {
-                        updateOverlayAppearance()
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Overlay update failed", e)
-                    }
                 }
                 obj.getJSONArray("playlist")
             } catch (e: Exception) {
@@ -493,6 +490,7 @@ class MainActivity : AppCompatActivity() {
 
                 withContext(Dispatchers.Main) {
                     applyPlaylistUpdate(playlist)
+                    updateOverlayAppearance()
                 }
             } catch (_: Exception) {
                 // Best-effort only
@@ -521,6 +519,9 @@ class MainActivity : AppCompatActivity() {
             0
         }
         updateContentInfo("Playlist updated (${newPlaylist.length()} items)")
+        if (isPlaying) {
+            startPlayback(resetIndex = false)
+        }
     }
 
     private fun findAssignmentIndex(list: JSONArray, assignmentId: Int): Int {
@@ -531,7 +532,7 @@ class MainActivity : AppCompatActivity() {
         return -1
     }
 
-    private fun startPlayback() {
+    private fun startPlayback(resetIndex: Boolean = true) {
         val playlist = currentPlaylist ?: return
         if (playlist.length() == 0) {
             statusText.text = "No content"
@@ -539,13 +540,25 @@ class MainActivity : AppCompatActivity() {
         }
 
         isPlaying = true
-        currentIndex = 0
+        if (resetIndex) {
+            currentIndex = 0
+        } else if (currentIndex >= playlist.length()) {
+            currentIndex = 0
+        }
         statusText.text = "Playing"
         updateContentInfo("Playlist: ${playlist.length()} items")
         playbackJob?.cancel()
         playbackJob = lifecycleScope.launch {
             while (isActive && isPlaying) {
-                val item = playlist.getJSONObject(currentIndex)
+                val activePlaylist = currentPlaylist
+                if (activePlaylist == null || activePlaylist.length() == 0) {
+                    statusText.text = "No content"
+                    break
+                }
+                if (currentIndex >= activePlaylist.length()) {
+                    currentIndex = 0
+                }
+                val item = activePlaylist.getJSONObject(currentIndex)
                 val fileType = item.optString("file_type", "image")
                 currentAssignmentId = item.optInt("assignment_id", 0)
                 if (fileType.equals("video", ignoreCase = true)) {
@@ -559,7 +572,7 @@ class MainActivity : AppCompatActivity() {
                     sendPlaybackEvent(item, startedAt, endedAt, plannedSeconds = (delayMs / 1000).toInt(), completed = true)
                 }
                 lastPlayedAssignmentId = currentAssignmentId
-                currentIndex = (currentIndex + 1) % playlist.length()
+                currentIndex = (currentIndex + 1) % activePlaylist.length()
             }
         }
     }
@@ -746,7 +759,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-private fun updateOverlayAppearance() {
+    private fun updateOverlayAppearance() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            runOnUiThread { updateOverlayAppearance() }
+            return
+        }
+        if (isFinishing || isDestroyed) return
+        if (!overlayLogo.isAttachedToWindow) return
         if (!overlayEnabled || overlayUrl.isNullOrBlank()) {
             overlayLogo.visibility = View.GONE
             return
@@ -819,6 +838,11 @@ private fun updateOverlayAppearance() {
     }
 
     private fun updateOverlayVisibility(isVideo: Boolean) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            runOnUiThread { updateOverlayVisibility(isVideo) }
+            return
+        }
+        if (isFinishing || isDestroyed) return
         if (!overlayEnabled || overlayUrl.isNullOrBlank()) {
             overlayLogo.visibility = View.GONE
             return
