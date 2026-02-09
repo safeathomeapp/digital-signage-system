@@ -240,6 +240,7 @@ These belong to **Phase 4+** only.
   - Generate **monthly summaries** per media using `GET /api/analytics/media/<media_id>?from=YYYY-MM-DD&to=YYYY-MM-DD`.
   - For operational use, run reports shortly after month end (e.g., first week of the following month).
   - Export results into a PDF/CSV for sharing.
+- **Future idea:** roll up analytics into daily/weekly summary tables and purge raw events to control table growth.
 
 ---
 
