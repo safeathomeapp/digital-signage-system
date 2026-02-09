@@ -1,7 +1,7 @@
 print("RUNNING production_app.py FROM:", __file__)
 
 # Enhanced Flask Backend with Device-Specific Content Management
-from flask import Flask, request, jsonify, render_template, redirect, send_from_directory
+from flask import Flask, request, jsonify, render_template, redirect, send_from_directory, session
 from werkzeug.utils import secure_filename
 import sqlite3
 import os
@@ -161,6 +161,18 @@ def require_device_auth(fn):
         if not _verify_device_token(device_id, token):
             return jsonify({"error": "forbidden", "code": "invalid_token", "detail": "Invalid token"}), 403
 
+        return fn(*args, **kwargs)
+
+    return wrapper
+
+def require_admin(fn):
+    """Protect admin UI/API routes with session-based PIN auth."""
+    from functools import wraps
+
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not session.get("admin_authed"):
+            return jsonify({"error": "unauthorized"}), 401
         return fn(*args, **kwargs)
 
     return wrapper
@@ -410,6 +422,7 @@ def device_management():
 
 # FIXED Upload endpoint with video duration handling
 @app.route('/upload', methods=['POST'])
+@require_admin
 def upload_file():
     try:
         if 'file' not in request.files:
@@ -549,6 +562,7 @@ def upload_file():
 
 # Assign content with full scheduling data
 @app.route('/api/assign-content-with-schedule', methods=['POST'])
+@require_admin
 def assign_content_with_schedule():
     try:
         data = request.get_json()
@@ -620,6 +634,7 @@ def assign_content_with_schedule():
         
 # Enhanced Media API with status information
 @app.route('/api/media')
+@require_admin
 def get_media_list():
     try:
         conn = sqlite3.connect('signage.db')
@@ -657,6 +672,7 @@ def get_media_list():
 
 # Get media info
 @app.route('/api/media/<int:media_id>')
+@require_admin
 def get_media_info(media_id):
     try:
         conn = sqlite3.connect('signage.db')
@@ -687,6 +703,7 @@ def get_media_info(media_id):
 
 # Delete media
 @app.route('/api/media/<int:media_id>', methods=['DELETE'])
+@require_admin
 def delete_media(media_id):
     try:
         conn = sqlite3.connect('signage.db')
@@ -720,6 +737,7 @@ def delete_media(media_id):
         return jsonify({'error': 'Failed to delete media'}), 500
 
 @app.route('/api/devices')
+@require_admin
 def get_devices():
     try:
         conn = get_db_connection()
@@ -770,6 +788,7 @@ def get_devices():
 
 # Update device information
 @app.route('/api/device/<device_id>', methods=['PUT'])
+@require_admin
 def update_device(device_id):
     try:
         data = request.get_json() or {}
@@ -794,6 +813,7 @@ def update_device(device_id):
 
 # Update device overlay settings
 @app.route('/api/device/<device_id>/overlay', methods=['PUT'])
+@require_admin
 def update_device_overlay(device_id):
     try:
         data = request.get_json() or {}
@@ -828,6 +848,7 @@ def update_device_overlay(device_id):
 
 # Activate device
 @app.route('/api/device/<device_id>/activate', methods=['PUT'])
+@require_admin
 def activate_device(device_id):
     try:
         conn = sqlite3.connect('signage.db')
@@ -850,6 +871,7 @@ def activate_device(device_id):
 
 # Get device content assignments
 @app.route('/api/device/<device_id>/content')
+@require_admin
 def get_device_content(device_id):
     try:
         conn = sqlite3.connect('signage.db')
@@ -902,6 +924,7 @@ def get_device_content(device_id):
 
 # Update device content schedule (per assignment)
 @app.route('/api/device-content/<int:assignment_id>/schedule', methods=['PUT'])
+@require_admin
 def update_device_content_schedule(assignment_id):
     try:
         data = request.get_json()
@@ -953,6 +976,7 @@ def update_device_content_schedule(assignment_id):
 
 # Reorder device content
 @app.route('/api/device/reorder-content', methods=['PUT'])
+@require_admin
 def reorder_device_content():
     try:
         data = request.get_json() or {}
@@ -983,6 +1007,7 @@ def reorder_device_content():
 
 # Remove content from device
 @app.route('/api/remove-content/<int:assignment_id>', methods=['DELETE'])
+@require_admin
 def remove_content(assignment_id):
     try:
         conn = sqlite3.connect('signage.db')
@@ -1000,6 +1025,7 @@ def remove_content(assignment_id):
 
 # Toggle device content pause
 @app.route('/api/device-content/<int:assignment_id>/pause', methods=['PUT'])
+@require_admin
 def toggle_device_content_pause(assignment_id):
     try:
         conn = sqlite3.connect('signage.db')
@@ -1023,6 +1049,7 @@ def toggle_device_content_pause(assignment_id):
         
 # Delete device
 @app.route('/api/device/<device_id>', methods=['DELETE'])
+@require_admin
 def delete_device(device_id):
     try:
         conn = sqlite3.connect('signage.db')
@@ -1049,6 +1076,7 @@ def delete_device(device_id):
 
 # System settings
 @app.route('/api/system/settings')
+@require_admin
 def get_system_settings():
     try:
         logo_filename = _get_setting('overlay_logo_filename')
@@ -1063,6 +1091,7 @@ def get_system_settings():
         return jsonify({'error': 'Failed to get settings'}), 500
 
 @app.route('/api/system/overlay-logo', methods=['POST'])
+@require_admin
 def upload_overlay_logo():
     try:
         if 'file' not in request.files:
@@ -1089,6 +1118,7 @@ def upload_overlay_logo():
         return jsonify({'error': 'Failed to upload overlay logo'}), 500
 
 @app.route('/api/system/pin', methods=['PUT'])
+@require_admin
 def update_admin_pin():
     try:
         data = request.get_json() or {}
@@ -1100,10 +1130,40 @@ def update_admin_pin():
     except Exception as e:
         logger.error(f"PIN update error: {e}")
         return jsonify({'error': 'Failed to update PIN'}), 500
-# Add this new endpoint to your production_app.py file
 
+@app.route('/api/system/auth/status')
+def admin_auth_status():
+    return jsonify({'authed': bool(session.get('admin_authed'))})
+
+@app.route('/api/system/pin/verify', methods=['POST'])
+def verify_admin_pin():
+    try:
+        data = request.get_json() or {}
+        pin = str(data.get('pin', '')).strip()
+        if not pin:
+            return jsonify({'error': 'PIN required'}), 400
+
+        stored_hash = _get_setting('admin_pin_hash')
+        if not stored_hash:
+            _ensure_default_pin()
+            stored_hash = _get_setting('admin_pin_hash')
+
+        if stored_hash and hmac.compare_digest(stored_hash, _hash_pin(pin)):
+            session['admin_authed'] = True
+            return jsonify({'success': True})
+
+        return jsonify({'error': 'Invalid PIN'}), 403
+    except Exception as e:
+        logger.error(f"PIN verify error: {e}")
+        return jsonify({'error': 'Failed to verify PIN'}), 500
+
+@app.route('/api/system/logout', methods=['POST'])
+def admin_logout():
+    session.pop('admin_authed', None)
+    return jsonify({'success': True})
 # Database cleanup endpoint
 @app.route('/api/system/cleanup', methods=['POST'])
+@require_admin
 def cleanup_database():
     """Clean up orphaned device_content records"""
     try:
@@ -1352,6 +1412,7 @@ def uploaded_file(filename):
 
 # Analytics summary for a media item (with per-device breakdown)
 @app.route('/api/analytics/media/<int:media_id>')
+@require_admin
 def analytics_media_summary(media_id):
     try:
         date_from = request.args.get('from')

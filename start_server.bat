@@ -1,16 +1,24 @@
 @echo off
 title Digital Signage Server
 color 0A
-cd /d "C:\DigitalSignageServer"
+
+cd /d "%~dp0"
+
+if not exist ".venv\Scripts\python.exe" (
+    echo.
+    echo Virtual environment not found.
+    echo Please run setup_server.ps1 first.
+    echo.
+    pause
+    exit /b 1
+)
 
 :MENU
 echo Starting Digital Signage Server...
 echo.
 
-call signage_env\Scripts\activate
-
 :RESTART
-python production_app.py
+".venv\Scripts\python.exe" production_app.py
 
 echo.
 echo Server stopped.
