@@ -848,7 +848,10 @@
             <span class="navbar-brand mb-0 h1">
                 <i class="fas fa-tv me-2"></i>Device Management
             </span>
-            <div class="navbar-nav ms-auto">
+            <div class="navbar-nav ms-auto d-flex flex-row gap-2 align-items-center">
+                <button class="btn btn-outline-light btn-sm" id="adminLogoutBtn" style="display: none;">
+                    <i class="fas fa-sign-out-alt me-1"></i>Logout
+                </button>
                 <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#systemSettingsModal">
                     <i class="fas fa-sliders-h me-1"></i>Settings
                 </button>
@@ -1237,6 +1240,12 @@
             overlay.classList.add('hidden');
         }
 
+        function setLogoutVisible(isVisible) {
+            const btn = document.getElementById('adminLogoutBtn');
+            if (!btn) return;
+            btn.style.display = isVisible ? 'inline-flex' : 'none';
+        }
+
         async function ensureAdminAuth() {
             try {
                 const resp = await fetch('/api/system/auth/status');
@@ -1244,6 +1253,7 @@
                     const result = await resp.json();
                     if (result.authed) {
                         hideAuthOverlay();
+                        setLogoutVisible(true);
                         initPage();
                         return;
                     }
@@ -1251,6 +1261,7 @@
             } catch (e) {
                 console.error('Auth status error:', e);
             }
+            setLogoutVisible(false);
             showAuthOverlay();
         }
 
@@ -1270,6 +1281,7 @@
                 });
                 if (resp.ok) {
                     hideAuthOverlay();
+                    setLogoutVisible(true);
                     initPage();
                     pinInput.value = '';
                     return;
@@ -1285,12 +1297,24 @@
         document.addEventListener('DOMContentLoaded', function() {
             const submitBtn = document.getElementById('adminAuthSubmit');
             const pinInput = document.getElementById('adminAuthPin');
+            const logoutBtn = document.getElementById('adminLogoutBtn');
             if (submitBtn) {
                 submitBtn.addEventListener('click', submitAdminPin);
             }
             if (pinInput) {
                 pinInput.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter') submitAdminPin();
+                });
+            }
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', async () => {
+                    try {
+                        await fetch('/api/system/logout', { method: 'POST' });
+                    } catch (e) {
+                        console.error('Logout error:', e);
+                    }
+                    setLogoutVisible(false);
+                    showAuthOverlay();
                 });
             }
             ensureAdminAuth();
