@@ -66,10 +66,15 @@ class MainActivity : AppCompatActivity() {
     private var playbackJob: Job? = null
 
     private var overlayEnabled = false
+    private var deviceOverlayEnabled = false
     private var overlayPosition = "top-right"
+    private var deviceOverlayPosition = "top-right"
     private var overlayOpacity = 0.6f
+    private var deviceOverlayOpacity = 0.6f
     private var overlaySize = 0.1f
+    private var deviceOverlaySize = 0.1f
     private var overlayHideOnVideo = true
+    private var deviceOverlayHideOnVideo = true
     private var overlayUrl: String? = null
     private val overlayMarginDp = 0
 
@@ -365,6 +370,11 @@ class MainActivity : AppCompatActivity() {
                                     overlaySize = overlayObj.optDouble("size", 0.1).toFloat()
                                     overlayHideOnVideo = overlayObj.optBoolean("hide_on_video", true)
                                     overlayUrl = overlayObj.optString("url", "")
+                                    deviceOverlayEnabled = overlayEnabled
+                                    deviceOverlayPosition = overlayPosition
+                                    deviceOverlayOpacity = overlayOpacity
+                                    deviceOverlaySize = overlaySize
+                                    deviceOverlayHideOnVideo = overlayHideOnVideo
                                     try {
                                         updateOverlayAppearance()
                                     } catch (e: Exception) {
@@ -435,6 +445,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun displayItem(item: JSONObject) {
         val url = item.optString("url")
+        applyOverlayOverridesForItem(item)
         if (url.isBlank()) return
         val filename = item.optString("filename", "Unknown")
         val transitionType = item.optString("transition_type", "fade")
@@ -473,6 +484,7 @@ class MainActivity : AppCompatActivity() {
 
     private suspend fun playVideoAndAwaitEnd(item: JSONObject) {
         val url = item.optString("url")
+        applyOverlayOverridesForItem(item)
         if (url.isBlank()) return
         val filename = item.optString("filename", "Unknown")
         updateContentInfo("$filename (video)")
@@ -594,7 +606,26 @@ class MainActivity : AppCompatActivity() {
             .start()
     }
 
-    private fun updateOverlayAppearance() {
+        private fun applyOverlayOverridesForItem(item: JSONObject) {
+        // Start from device defaults
+        overlayEnabled = deviceOverlayEnabled
+        overlayPosition = deviceOverlayPosition
+        overlayOpacity = deviceOverlayOpacity
+        overlaySize = deviceOverlaySize
+        overlayHideOnVideo = deviceOverlayHideOnVideo
+
+        if (item.has("overlay_enabled") && !item.isNull("overlay_enabled")) {
+            overlayEnabled = item.optBoolean("overlay_enabled", deviceOverlayEnabled)
+        }
+        if (item.has("overlay_position") && !item.isNull("overlay_position")) {
+            val pos = item.optString("overlay_position", deviceOverlayPosition)
+            if (pos.isNotBlank()) {
+                overlayPosition = pos
+            }
+        }
+    }
+
+private fun updateOverlayAppearance() {
         if (!overlayEnabled || overlayUrl.isNullOrBlank()) {
             overlayLogo.visibility = View.GONE
             return

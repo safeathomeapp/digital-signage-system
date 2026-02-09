@@ -1,7 +1,7 @@
 print("RUNNING production_app.py FROM:", __file__)
 
 # Enhanced Flask Backend with Device-Specific Content Management
-from flask import Flask, request, jsonify, render_template, redirect
+from flask import Flask, request, jsonify, render_template, redirect, send_from_directory
 from werkzeug.utils import secure_filename
 import sqlite3
 import os
@@ -291,6 +291,8 @@ def init_db():
             play_order INTEGER DEFAULT 0,
             transition_type TEXT DEFAULT "fade",
             transition_duration REAL DEFAULT 1.0,
+    overlay_enabled BOOLEAN,
+    overlay_position TEXT,
             analytics_enabled BOOLEAN DEFAULT 0,
             analytics_sample_rate INTEGER DEFAULT 5,
             analytics_counter INTEGER DEFAULT 0,
@@ -303,6 +305,16 @@ def init_db():
         conn.execute('ALTER TABLE device_content ADD COLUMN video_duration INTEGER')
     except sqlite3.OperationalError:
         pass  # Column already exists
+    try:
+        conn.execute('ALTER TABLE device_content ADD COLUMN overlay_enabled BOOLEAN')
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute('ALTER TABLE device_content ADD COLUMN overlay_position TEXT')
+    except sqlite3.OperationalError:
+        pass
+
     try:
         conn.execute('ALTER TABLE device_content ADD COLUMN analytics_enabled BOOLEAN DEFAULT 0')
     except sqlite3.OperationalError:
@@ -619,6 +631,70 @@ def get_media_list():
         logger.error(f"Error getting media list: {e}")
         return jsonify({'error': 'Failed to get media list'}), 500
 
+# Get media info
+@app.route('/api/media/<int:media_id>')
+def get_media_info(media_id):
+    try:
+        conn = sqlite3.connect('signage.db')
+        cursor = conn.execute('''
+            SELECT id, filename, original_name, file_type, file_size, created_at, video_duration
+            FROM media
+            WHERE id = ?
+        ''', (media_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return jsonify({'error': 'Media not found'}), 404
+
+        return jsonify({
+            'id': row[0],
+            'filename': row[1],
+            'original_name': row[2],
+            'file_type': row[3],
+            'file_size': row[4],
+            'created_at': row[5],
+            'video_duration': row[6]
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting media info: {e}")
+        return jsonify({'error': 'Failed to get media info'}), 500
+
+# Delete media
+@app.route('/api/media/<int:media_id>', methods=['DELETE'])
+def delete_media(media_id):
+    try:
+        conn = sqlite3.connect('signage.db')
+
+        cursor = conn.execute('SELECT filename FROM media WHERE id = ?', (media_id,))
+        result = cursor.fetchone()
+
+        if not result:
+            conn.close()
+            return jsonify({'error': 'Media not found'}), 404
+
+        filename = result[0]
+
+        conn.execute('DELETE FROM device_content WHERE media_id = ?', (media_id,))
+        conn.execute('DELETE FROM playback_analytics WHERE media_id = ?', (media_id,))
+        conn.execute('DELETE FROM media WHERE id = ?', (media_id,))
+
+        conn.commit()
+        update_content_timestamp()
+        conn.close()
+
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        logger.info(f"Media {media_id} ({filename}) deleted completely")
+        return jsonify({'success': 'Media deleted successfully'})
+
+    except Exception as e:
+        logger.error(f"Error deleting media: {e}")
+        return jsonify({'error': 'Failed to delete media'}), 500
+
 @app.route('/api/devices')
 def get_devices():
     try:
@@ -668,376 +744,26 @@ def get_devices():
         logger.error(f"Error getting devices: {e}")
         return jsonify({'error': 'Failed to get devices'}), 500
 
-# Update media schedule
-@app.route('/api/media/<int:media_id>/schedule', methods=['PUT'])
-def update_media_schedule(media_id):
-    try:
-        data = request.get_json()
-        
-        conn = sqlite3.connect('signage.db')
-        
-        # Get days of week, default to 'all' if empty
-        days_list = data.get('days_of_week', [])
-        if not days_list or len(days_list) == 0:
-            days_list = ['all']
-        days_json = json.dumps(days_list)
-        
-        # Update all device_content records for this media
-        conn.execute('''
-            UPDATE device_content 
-            SET days_of_week = ?, display_duration = ?, start_time = ?, end_time = ?, 
-                start_date = ?, end_date = ?
-            WHERE media_id = ?
-        ''', (
-            days_json,
-            data.get('display_duration', 10),
-            data.get('start_time'),
-            data.get('end_time'),
-            data.get('start_date'),
-            data.get('end_date'),
-            media_id
-        ))
-        
-        conn.commit()
-        update_content_timestamp()
-        conn.close()
-        
-        logger.info(f"Media {media_id} schedule updated")
-        return jsonify({'success': 'Schedule updated successfully'})
-    
-    except Exception as e:
-        logger.error(f"Error updating media schedule: {e}")
-        return jsonify({'error': 'Failed to update schedule'}), 500
-
-# Toggle content pause state
-@app.route('/api/device-content/<int:assignment_id>/pause', methods=['PUT'])
-def toggle_content_pause(assignment_id):
-    try:
-        data = request.get_json()
-        is_paused = data.get('is_paused', False)
-        
-        conn = sqlite3.connect('signage.db')
-        
-        # Update pause state (is_active is opposite of is_paused)
-        conn.execute('''
-            UPDATE device_content 
-            SET is_active = ? 
-            WHERE id = ?
-        ''', (not is_paused, assignment_id))
-        
-        conn.commit()
-        update_content_timestamp()
-        conn.close()
-        
-        logger.info(f"Content {assignment_id} {'paused' if is_paused else 'resumed'}")
-        return jsonify({'success': f'Content {"paused" if is_paused else "resumed"}'})
-    
-    except Exception as e:
-        logger.error(f"Error toggling content pause: {e}")
-        return jsonify({'error': 'Failed to update pause state'}), 500
-        
-# Assign media to all devices
-@app.route('/api/assign-all-devices', methods=['POST'])
-def assign_all_devices():
-    try:
-        data = request.get_json()
-        media_id = data.get('media_id')
-        duration = data.get('display_duration', 10)
-        
-        if not media_id:
-            return jsonify({'error': 'Media ID required'}), 400
-        
-        conn = sqlite3.connect('signage.db')
-        
-        # Get all active devices
-        cursor = conn.execute('SELECT device_id FROM devices WHERE is_active = 1')
-        devices = cursor.fetchall()
-        
-        assigned_count = 0
-        for device in devices:
-            device_id = device[0]
-            
-            # Always allow duplicates for weaving content
-            cursor = conn.execute('''
-                SELECT COALESCE(MAX(play_order), 0) + 1 
-                FROM device_content 
-                WHERE device_id = ? AND is_active = 1
-            ''', (device_id,))
-            next_order = cursor.fetchone()[0]
-            
-            # Create new assignment
-            conn.execute('''
-                INSERT INTO device_content (device_id, media_id, display_duration, play_order, is_active)
-                VALUES (?, ?, ?, ?, 1)
-            ''', (device_id, media_id, duration, next_order))
-            assigned_count += 1
-        
-        conn.commit()
-        update_content_timestamp()
-        conn.close()
-        
-        logger.info(f"Media {media_id} assigned to {assigned_count} devices")
-        return jsonify({'success': f'Content assigned to {assigned_count} devices'})
-    
-    except Exception as e:
-        logger.error(f"Error assigning to all devices: {e}")
-        return jsonify({'error': 'Failed to assign to all devices'}), 500
-
-# Toggle media active/inactive status
-@app.route('/api/media/<int:media_id>/toggle', methods=['PUT'])
-def toggle_media_status(media_id):
-    try:
-        data = request.get_json()
-        is_active = data.get('is_active', True)
-        
-        conn = sqlite3.connect('signage.db')
-        
-        # Update media status in device_content table
-        conn.execute('''
-            UPDATE device_content 
-            SET is_active = ? 
-            WHERE media_id = ?
-        ''', (is_active, media_id))
-        
-        conn.commit()
-        update_content_timestamp()
-        conn.close()
-        
-        logger.info(f"Media {media_id} status changed to {'active' if is_active else 'inactive'}")
-        return jsonify({'success': 'Media status updated'})
-    
-    except Exception as e:
-        logger.error(f"Error toggling media status: {e}")
-        return jsonify({'error': 'Failed to update media status'}), 500
-
-# Delete media completely
-@app.route('/api/media/<int:media_id>', methods=['DELETE'])
-def delete_media(media_id):
-    try:
-        conn = sqlite3.connect('signage.db')
-        
-        # Get filename for file deletion
-        cursor = conn.execute('SELECT filename FROM media WHERE id = ?', (media_id,))
-        result = cursor.fetchone()
-        
-        if not result:
-            conn.close()
-            return jsonify({'error': 'Media not found'}), 404
-        
-        filename = result[0]
-        
-        # Delete device assignments
-        conn.execute('DELETE FROM device_content WHERE media_id = ?', (media_id,))
-        
-        # Delete analytics records
-        conn.execute('DELETE FROM playback_analytics WHERE media_id = ?', (media_id,))
-        
-        # Delete media record
-        conn.execute('DELETE FROM media WHERE id = ?', (media_id,))
-        
-        conn.commit()
-        update_content_timestamp()
-        conn.close()
-        
-        # Delete physical file
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        
-        logger.info(f"Media {media_id} ({filename}) deleted completely")
-        return jsonify({'success': 'Media deleted successfully'})
-    
-    except Exception as e:
-        logger.error(f"Error deleting media: {e}")
-        return jsonify({'error': 'Failed to delete media'}), 500
-
-# Get device content with full scheduling data
-@app.route('/api/device/<device_id>/content')
-def get_device_content(device_id):
-    try:
-        conn = sqlite3.connect('signage.db')
-        cursor = conn.execute('''
-            SELECT dc.id as assignment_id, dc.media_id, dc.display_duration, dc.play_order,
-                   dc.days_of_week, dc.start_date, dc.end_date, dc.start_time, dc.end_time,
-                     dc.is_active, dc.transition_type, dc.transition_duration,
-                     dc.analytics_enabled, dc.analytics_sample_rate,
-                     m.filename, m.original_name, m.file_type, m.video_duration
-            FROM device_content dc
-            JOIN media m ON dc.media_id = m.id
-            WHERE dc.device_id = ?
-            ORDER BY dc.play_order ASC, dc.created_at ASC
-        ''', (device_id,))
-
-        content = []
-        for row in cursor.fetchall():
-                content.append({
-                    'assignment_id': row[0],
-                    'media_id': row[1],
-                    'display_duration': row[2],
-                    'play_order': row[3] or 0,
-                    'days_of_week': row[4],
-                    'start_date': row[5],
-                    'end_date': row[6],
-                    'start_time': row[7],
-                    'end_time': row[8],
-                    'is_paused': not bool(row[9]),
-                    'transition_type': row[10] or 'fade',
-                    'transition_duration': row[11] or 1.0,
-                    'analytics_enabled': bool(row[12]),
-                    'analytics_sample_rate': row[13] or 5,
-                    'filename': row[14],
-                    'original_name': row[15],
-                    'file_type': row[16],
-                    'video_duration': row[17]
-                })
-        
-        conn.close()
-        return jsonify(content)
-    
-    except Exception as e:
-        logger.error(f"Error getting device content: {e}")
-        return jsonify({'error': 'Failed to get device content'}), 500
-
-# Assign content with play order support (UPDATED)
-@app.route('/api/assign-content', methods=['POST'])
-def assign_content():
-    try:
-        data = request.get_json()
-        device_id = data.get('device_id')
-        media_id = data.get('media_id')
-        duration = data.get('display_duration', 10)
-        
-        if not device_id or not media_id:
-            return jsonify({'error': 'Device ID and Media ID required'}), 400
-        
-        conn = sqlite3.connect('signage.db')
-        
-        # Check if assignment already exists
-        cursor = conn.execute('''
-            SELECT id FROM device_content 
-            WHERE device_id = ? AND media_id = ? AND is_active = 1
-        ''', (device_id, media_id))
-        
-        if cursor.fetchone():
-            conn.close()
-            return jsonify({'error': 'Content already assigned to this device'}), 400
-        
-        # Get next play order
-        cursor = conn.execute('''
-            SELECT COALESCE(MAX(play_order), 0) + 1 
-            FROM device_content 
-            WHERE device_id = ? AND is_active = 1
-        ''', (device_id,))
-        next_order = cursor.fetchone()[0]
-        
-        # Create new assignment
-        conn.execute('''
-            INSERT INTO device_content (device_id, media_id, display_duration, play_order, is_active)
-            VALUES (?, ?, ?, ?, 1)
-        ''', (device_id, media_id, duration, next_order))
-        
-        conn.commit()
-        update_content_timestamp()
-        conn.close()
-        
-        logger.info(f"Content {media_id} assigned to device {device_id} with order {next_order}")
-        return jsonify({'success': 'Content assigned successfully'})
-    
-    except Exception as e:
-        logger.error(f"Error assigning content: {e}")
-        return jsonify({'error': 'Failed to assign content'}), 500
-
-# Update device content settings
-@app.route('/api/device-content/<int:assignment_id>', methods=['PUT'])
-def update_device_content(assignment_id):
-    try:
-        data = request.get_json()
-        display_duration = data.get('display_duration')
-        
-        conn = sqlite3.connect('signage.db')
-        conn.execute('''
-            UPDATE device_content 
-            SET display_duration = ? 
-            WHERE id = ?
-        ''', (display_duration, assignment_id))
-        
-        conn.commit()
-        conn.close()
-        
-        logger.info(f"Device content assignment {assignment_id} updated")
-        return jsonify({'success': 'Content updated successfully'})
-    
-    except Exception as e:
-        logger.error(f"Error updating device content: {e}")
-        return jsonify({'error': 'Failed to update content'}), 500
-
-# Reorder device content
-@app.route('/api/device/reorder-content', methods=['PUT'])
-def reorder_device_content():
-    try:
-        data = request.get_json()
-        device_id = data.get('device_id')
-        content_order = data.get('content_order')  # List of {assignment_id, play_order}
-        
-        conn = sqlite3.connect('signage.db')
-        
-        # Update play orders
-        for item in content_order:
-            conn.execute('''
-                UPDATE device_content 
-                SET play_order = ? 
-                WHERE id = ? AND device_id = ?
-            ''', (item['play_order'], item['assignment_id'], device_id))
-        
-        conn.commit()
-        update_content_timestamp()
-        conn.close()
-        
-        logger.info(f"Content reordered for device {device_id}")
-        return jsonify({'success': 'Content reordered successfully'})
-    
-    except Exception as e:
-        logger.error(f"Error reordering content: {e}")
-        return jsonify({'error': 'Failed to reorder content'}), 500
-
-# Remove content from device        
-@app.route('/api/remove-content/<int:assignment_id>', methods=['DELETE'])
-def remove_content(assignment_id):
-    try:
-        conn = sqlite3.connect('signage.db')
-        conn.execute('DELETE FROM device_content WHERE id = ?', (assignment_id,))
-        conn.commit()
-        update_content_timestamp()
-        conn.close()
-        
-        logger.info(f"Content assignment {assignment_id} removed")
-        return jsonify({'success': 'Content assignment removed'})
-    
-    except Exception as e:
-        logger.error(f"Error removing content: {e}")
-        return jsonify({'error': 'Failed to remove content'}), 500
-
 # Update device information
 @app.route('/api/device/<device_id>', methods=['PUT'])
 def update_device(device_id):
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         custom_name = data.get('custom_name', '')
         location = data.get('location', '')
-        
+
         conn = sqlite3.connect('signage.db')
         conn.execute('''
-            UPDATE devices 
-            SET custom_name = ?, location = ? 
+            UPDATE devices
+            SET custom_name = ?, location = ?
             WHERE device_id = ?
         ''', (custom_name, location, device_id))
-        
         conn.commit()
         conn.close()
-        
+
         logger.info(f"Device {device_id} updated: name='{custom_name}', location='{location}'")
         return jsonify({'success': 'Device updated successfully'})
-    
+
     except Exception as e:
         logger.error(f"Error updating device: {e}")
         return jsonify({'error': 'Failed to update device'}), 500
@@ -1047,18 +773,11 @@ def update_device(device_id):
 def update_device_overlay(device_id):
     try:
         data = request.get_json() or {}
-        overlay_enabled = bool(data.get('overlay_enabled', True))
-        overlay_position = (data.get('overlay_position') or 'top-right').strip().lower()
+        overlay_enabled = 1 if data.get('overlay_enabled', True) else 0
+        overlay_position = data.get('overlay_position', 'top-right')
         overlay_opacity = float(data.get('overlay_opacity', 0.6))
         overlay_size = float(data.get('overlay_size', 0.1))
-        overlay_hide_on_video = bool(data.get('overlay_hide_on_video', True))
-
-        allowed_positions = {'top-left', 'top-right', 'bottom-left', 'bottom-right'}
-        if overlay_position not in allowed_positions:
-            return jsonify({'error': 'Invalid overlay_position'}), 400
-
-        overlay_opacity = max(0.0, min(1.0, overlay_opacity))
-        overlay_size = max(0.05, min(0.3, overlay_size))
+        overlay_hide_on_video = 1 if data.get('overlay_hide_on_video', True) else 0
 
         conn = sqlite3.connect('signage.db')
         conn.execute('''
@@ -1067,87 +786,23 @@ def update_device_overlay(device_id):
                 overlay_size = ?, overlay_hide_on_video = ?
             WHERE device_id = ?
         ''', (
-            1 if overlay_enabled else 0,
+            overlay_enabled,
             overlay_position,
             overlay_opacity,
             overlay_size,
-            1 if overlay_hide_on_video else 0,
+            overlay_hide_on_video,
             device_id
         ))
         conn.commit()
         conn.close()
 
         return jsonify({'success': True})
+
     except Exception as e:
-        logger.error(f"Error updating overlay settings: {e}")
-        return jsonify({'error': 'Failed to update overlay settings'}), 500
-        
-# Android API - Device-specific playlists
-@app.route('/api/register', methods=['POST'])
-def register_device():
-    """One-time device registration to obtain a per-device token."""
-    data = request.get_json(silent=True) or {}
-    device_id = (data.get('device_id') or request.headers.get('X-Device-Id') or "").strip()
+        logger.error(f"Overlay save error: {e}")
+        return jsonify({'error': 'Failed to save overlay settings'}), 500
 
-    if not device_id:
-        return jsonify({'error': 'bad_request', 'detail': 'device_id required'}), 400
-
-    try:
-        conn = get_db_connection()
-        row = conn.execute(
-            'SELECT device_id, is_active FROM devices WHERE device_id = ?',
-            (device_id,)
-        ).fetchone()
-
-        # If device doesn't exist, create INACTIVE (approval required)
-        if row is None:
-            conn.execute('''
-                INSERT INTO devices (device_id, device_name, last_checkin, is_active, ip_address)
-                VALUES (?, ?, ?, 0, ?)
-            ''', (device_id, f'Device {device_id[:8]}', datetime.now(), request.remote_addr))
-            conn.commit()
-            conn.close()
-            return jsonify({
-                'error': 'forbidden',
-                'code': 'pending_approval',
-                'detail': 'Device created but inactive. Approve/activate in admin UI.'
-            }), 403
-
-        # If exists but inactive, still pending approval
-        if int(row['is_active']) != 1:
-            conn.execute(
-                'UPDATE devices SET last_checkin = ?, ip_address = ? WHERE device_id = ?',
-                (datetime.now(), request.remote_addr, device_id)
-            )
-            conn.commit()
-            conn.close()
-            return jsonify({
-                'error': 'forbidden',
-                'code': 'pending_approval',
-                'detail': 'Device inactive. Approve/activate in admin UI.'
-            }), 403
-
-        # Active device: update checkin, issue/reuse token
-        conn.execute(
-            'UPDATE devices SET last_checkin = ?, ip_address = ? WHERE device_id = ?',
-            (datetime.now(), request.remote_addr, device_id)
-        )
-        conn.commit()
-        conn.close()
-
-        token = _get_or_create_device_token(device_id)
-        return jsonify({'device_id': device_id, 'token': token}), 200
-
-    except Exception:
-        logger.exception('Registration failed')
-        return jsonify({'error': 'server_error'}), 500
-
-
-    token = _get_or_create_device_token(device_id)
-    return jsonify({'device_id': device_id, 'token': token}), 200
-
-from flask import Flask, request, jsonify, render_template, redirect  # make sure redirect is imported
-
+# Activate device
 @app.route('/api/device/<device_id>/activate', methods=['PUT'])
 def activate_device(device_id):
     try:
@@ -1169,280 +824,61 @@ def activate_device(device_id):
         logger.error(f"Error activating device {device_id}: {e}")
         return jsonify({'error': 'server_error', 'detail': 'Failed to activate device'}), 500
 
-
-@app.route('/api/playlist/<device_id>')
-@require_device_auth
-def get_playlist(device_id):
+# Get device content assignments
+@app.route('/api/device/<device_id>/content')
+def get_device_content(device_id):
     try:
-        conn = get_db_connection()
-
-        # Only update checkin/IP; do NOT flip is_active here
-        conn.execute('''
-            UPDATE devices
-            SET last_checkin = ?, ip_address = ?
-            WHERE device_id = ?
-        ''', (datetime.now(), request.remote_addr, device_id))
-        conn.commit()
-
-        now = datetime.now()
-        today = now.date()
-        current_time = now.time()
-        current_day = today.strftime('%a').lower()
-
+        conn = sqlite3.connect('signage.db')
         cursor = conn.execute('''
-            SELECT dc.id as assignment_id,
-                   dc.media_id, m.filename, m.file_type, dc.display_duration,
-                   dc.days_of_week, dc.start_date, dc.end_date, dc.start_time, dc.end_time,
-                   dc.play_order, dc.transition_type, dc.transition_duration,
-                   dc.analytics_enabled, dc.analytics_sample_rate
+            SELECT dc.id as assignment_id, dc.media_id, dc.display_duration,
+                   dc.play_order,
+                   dc.days_of_week, dc.start_date, dc.end_date,
+                   dc.start_time, dc.end_time,
+                   dc.is_active, dc.transition_type, dc.transition_duration,
+                   dc.analytics_enabled, dc.analytics_sample_rate,
+                   dc.overlay_enabled, dc.overlay_position,
+                   m.filename, m.original_name, m.file_type, m.video_duration
             FROM device_content dc
             JOIN media m ON dc.media_id = m.id
             WHERE dc.device_id = ?
-              AND dc.is_active = 1
-              AND (dc.start_date IS NULL OR dc.start_date <= ?)
-              AND (dc.end_date   IS NULL OR dc.end_date   >= ?)
-            ORDER BY dc.play_order, dc.created_at
-        ''', (device_id, today, today))
+            ORDER BY dc.play_order ASC, dc.created_at ASC
+        ''', (device_id,))
 
-        playlist = []
+        content = []
         for row in cursor.fetchall():
-            (assignment_id, media_id, filename, file_type, duration,
-             days_json, start_date, end_date, start_time_str, end_time_str,
-             play_order, transition_type, transition_duration,
-             analytics_enabled, analytics_sample_rate) = row
-
-            # Days
-            try:
-                days_of_week = json.loads(days_json) if days_json else ['all']
-            except Exception:
-                days_of_week = ['all']
-
-            day_matches = (
-                'all' in days_of_week or
-                current_day in days_of_week or
-                (current_day in ['mon', 'tue', 'wed', 'thu', 'fri'] and 'weekdays' in days_of_week) or
-                (current_day in ['sat', 'sun'] and 'weekends' in days_of_week)
-            )
-
-            # Time
-            time_matches = True
-            if start_time_str and end_time_str:
-                start_t = datetime.strptime(start_time_str, "%H:%M:%S").time() if len(start_time_str) > 5 else datetime.strptime(start_time_str, "%H:%M").time()
-                end_t   = datetime.strptime(end_time_str,   "%H:%M:%S").time() if len(end_time_str)   > 5 else datetime.strptime(end_time_str,   "%H:%M").time()
-                time_matches = start_t <= current_time <= end_t
-
-            if day_matches and time_matches:
-                playlist.append({
-                    'assignment_id': assignment_id,
-                    'id': media_id,
-                    'filename': filename,
-                    'file_type': file_type,
-                    'display_duration': duration,
-                    'play_order': play_order or 0,
-                    'transition_type': transition_type or 'fade',
-                    'transition_duration': transition_duration or 1.0,
-                    'analytics_enabled': bool(analytics_enabled),
-                    'analytics_sample_rate': analytics_sample_rate or 5,
-                    'url': f'http://{SERVER_IP}:5000/uploads/{filename}'
-                })
-
-        device_overlay = conn.execute('''
-            SELECT overlay_enabled, overlay_position, overlay_opacity,
-                   overlay_size, overlay_hide_on_video
-            FROM devices WHERE device_id = ?
-        ''', (device_id,)).fetchone()
-
-        logo_filename = _get_setting('overlay_logo_filename', '') or ''
-        overlay_url = f'http://{SERVER_IP}:5000/uploads/{logo_filename}' if logo_filename else ''
-
-        overlay_enabled = bool(device_overlay['overlay_enabled']) if device_overlay else True
-        overlay_payload = {
-            'enabled': overlay_enabled and bool(overlay_url),
-            'position': (device_overlay['overlay_position'] if device_overlay else 'top-right') or 'top-right',
-            'opacity': float(device_overlay['overlay_opacity']) if device_overlay and device_overlay['overlay_opacity'] is not None else 0.6,
-            'size': float(device_overlay['overlay_size']) if device_overlay and device_overlay['overlay_size'] is not None else 0.1,
-            'hide_on_video': bool(device_overlay['overlay_hide_on_video']) if device_overlay else True,
-            'url': overlay_url
-        }
+            content.append({
+                'assignment_id': row[0],
+                'media_id': row[1],
+                'display_duration': row[2],
+                'play_order': row[3] or 0,
+                'days_of_week': row[4],
+                'start_date': row[5],
+                'end_date': row[6],
+                'start_time': row[7],
+                'end_time': row[8],
+                'is_paused': not bool(row[9]),
+                'transition_type': row[10] or 'fade',
+                'transition_duration': row[11] or 1.0,
+                'analytics_enabled': bool(row[12]) if row[12] is not None else False,
+                'analytics_sample_rate': row[13] if row[13] is not None else 5,
+                'overlay_enabled': None if row[14] is None else bool(row[14]),
+                'overlay_position': row[15],
+                'filename': row[16],
+                'original_name': row[17],
+                'file_type': row[18],
+                'video_duration': row[19]
+            })
 
         conn.close()
-
-        # IMPORTANT: return a raw JSON array to match Android JSONArray(responseText)
-        return jsonify({
-            'device_id': device_id,
-            'server_ip': SERVER_IP,
-            'updated_at': now.isoformat(),
-            'playlist': playlist,
-            'overlay': overlay_payload
-        }), 200
+        return jsonify(content)
 
     except Exception as e:
-        logger.error(f"Error serving device playlist: {e}")
-        return jsonify({'error': 'Failed to get playlist'}), 500
+        logger.error(f"Error getting device content: {e}")
+        return jsonify({'error': 'Failed to get device content'}), 500
 
-
-# File serving
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    try:
-        from flask import send_from_directory
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-    except Exception as e:
-        logger.error(f"File serve error: {e}")
-        return "File not found", 404
-
-# Auto refresh
-@app.route('/api/system/last-update')
-def get_last_update():
-    """Return the timestamp of the last content update"""
-    try:
-        return jsonify({
-            'last_update': LAST_CONTENT_UPDATE,
-            'server_time': time.time()
-        })
-    except Exception as e:
-        logger.error(f"Error getting last update: {e}")
-        return jsonify({'error': 'Failed to get update timestamp'}), 500
-        
-# System settings (global)
-@app.route('/api/system/settings')
-def get_system_settings():
-    try:
-        logo_filename = _get_setting('overlay_logo_filename', '')
-        logo_url = f'http://{SERVER_IP}:5000/uploads/{logo_filename}' if logo_filename else ''
-        pin_set = bool(_get_setting('admin_pin_hash'))
-        return jsonify({
-            'overlay_logo_filename': logo_filename,
-            'overlay_logo_url': logo_url,
-            'pin_set': pin_set
-        })
-    except Exception as e:
-        logger.error(f"System settings error: {e}")
-        return jsonify({'error': 'Failed to get system settings'}), 500
-
-@app.route('/api/system/pin', methods=['PUT'])
-def set_system_pin():
-    try:
-        data = request.get_json() or {}
-        pin = (data.get('pin') or '').strip()
-        if len(pin) < 4:
-            return jsonify({'error': 'PIN must be at least 4 digits'}), 400
-        _set_setting('admin_pin_hash', _hash_pin(pin))
-        return jsonify({'success': True})
-    except Exception as e:
-        logger.error(f"PIN update error: {e}")
-        return jsonify({'error': 'Failed to update PIN'}), 500
-
-@app.route('/api/system/pin/verify', methods=['POST'])
-def verify_system_pin():
-    try:
-        data = request.get_json() or {}
-        pin = (data.get('pin') or '').strip()
-        stored = _get_setting('admin_pin_hash', '')
-        if not stored:
-            return jsonify({'valid': False}), 200
-        return jsonify({'valid': hmac.compare_digest(stored, _hash_pin(pin))}), 200
-    except Exception as e:
-        logger.error(f"PIN verify error: {e}")
-        return jsonify({'valid': False}), 200
-
-# Overlay logo upload
-@app.route('/api/system/overlay-logo', methods=['POST'])
-def upload_overlay_logo():
-    try:
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file selected'}), 400
-
-        file = request.files['file']
-        if file.filename == '' or not allowed_file(file.filename):
-            return jsonify({'error': 'Invalid file type'}), 400
-
-        filename = secure_filename(file.filename)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
-        unique_filename = f"overlay_logo_{timestamp}{filename}"
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-        file.save(file_path)
-
-        _set_setting('overlay_logo_filename', unique_filename)
-
-        return jsonify({
-            'success': True,
-            'filename': unique_filename,
-            'url': f'http://{SERVER_IP}:5000/uploads/{unique_filename}'
-        })
-    except Exception as e:
-        logger.error(f"Overlay logo upload error: {e}")
-        return jsonify({'error': 'Failed to upload overlay logo'}), 500
-
-# System status
-@app.route('/api/system/status')
-def system_status():
-    try:
-        conn = sqlite3.connect('signage.db')
-        
-        cursor = conn.execute('SELECT COUNT(*) FROM devices WHERE is_active = 1')
-        active_devices = cursor.fetchone()[0]
-        
-        cursor = conn.execute('SELECT COUNT(*) FROM media')
-        total_media = cursor.fetchone()[0]
-        
-        # Get storage info
-        total_size = 0
-        if os.path.exists('uploads'):
-            for filename in os.listdir('uploads'):
-                filepath = os.path.join('uploads', filename)
-                if os.path.isfile(filepath):
-                    total_size += os.path.getsize(filepath)
-        
-        conn.close()
-        
-        return jsonify({
-            'server_ip': SERVER_IP,
-            'status': 'running',
-            'active_devices': active_devices,
-            'total_media': total_media,
-            'storage_used_mb': round(total_size / 1024 / 1024, 2)
-        })
-    
-    except Exception as e:
-        logger.error(f"System status error: {e}")
-        return jsonify({'error': 'Failed to get status'}), 500
-
-# FIXED: Get media info from media table (not device_content)
-@app.route('/api/media/<int:media_id>')
-def get_media_info(media_id):
-    """Get information about a specific media item"""
-    try:
-        conn = sqlite3.connect('signage.db')
-        cursor = conn.execute('''
-            SELECT id, filename, original_name, file_type, file_size, created_at, video_duration
-            FROM media 
-            WHERE id = ?
-        ''', (media_id,))
-        
-        row = cursor.fetchone()
-        conn.close()
-        
-        if not row:
-            return jsonify({'error': 'Media not found'}), 404
-            
-        return jsonify({
-            'id': row[0],
-            'filename': row[1],
-            'original_name': row[2],
-            'file_type': row[3],
-            'file_size': row[4],
-            'created_at': row[5],
-            'video_duration': row[6]
-        })
-    
-    except Exception as e:
-        logger.error(f"Error getting media info: {e}")
-        return jsonify({'error': 'Failed to get media info'}), 500
-
-# Update device content schedule
-@app.route('/api/device-content/<int:assignment_id>/schedule', methods=['PUT'])
-def update_device_content_schedule(assignment_id):
+# Update media schedule
+@app.route('/api/media/<int:media_id>/schedule', methods=['PUT'])
+def update_media_schedule(media_id):
     try:
         data = request.get_json()
         
@@ -1454,19 +890,69 @@ def update_device_content_schedule(assignment_id):
             days_list = ['all']
         days_json = json.dumps(days_list)
         
+        # Update all device_content records for this media
+        overlay_enabled = data.get('overlay_enabled')
+        overlay_position = data.get('overlay_position')
         analytics_enabled = bool(data.get('analytics_enabled', False))
-        analytics_sample_rate = int(data.get('analytics_sample_rate', 5) or 5)
-        if analytics_sample_rate < 1:
-            analytics_sample_rate = 1
-        if analytics_sample_rate > 50:
-            analytics_sample_rate = 50
+        analytics_sample_rate = int(data.get('analytics_sample_rate') or 5)
 
-        # Update device content record INCLUDING TRANSITION FIELDS
         conn.execute('''
             UPDATE device_content 
             SET days_of_week = ?, display_duration = ?, start_time = ?, end_time = ?, 
                 start_date = ?, end_date = ?, transition_type = ?, transition_duration = ?,
-                analytics_enabled = ?, analytics_sample_rate = ?
+                analytics_enabled = ?, analytics_sample_rate = ?,
+                overlay_enabled = ?, overlay_position = ?
+            WHERE media_id = ?
+        ''', (
+            days_json,
+            data.get('display_duration', 10),
+            data.get('start_time'),
+            data.get('end_time'),
+            data.get('start_date'),
+            data.get('end_date'),
+            data.get('transition_type', 'fade'),
+            data.get('transition_duration', 1.0),
+            1 if analytics_enabled else 0,
+            analytics_sample_rate,
+            None if overlay_enabled is None else (1 if overlay_enabled else 0),
+            overlay_position,
+            media_id
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"Media {media_id} schedule updated with transitions")
+        return jsonify({'success': 'Schedule updated successfully'})
+    
+    except Exception as e:
+        logger.error(f"Error updating device content schedule: {e}")
+        return jsonify({'error': 'Failed to update schedule'}), 500
+
+# Update device content schedule (per assignment)
+@app.route('/api/device-content/<int:assignment_id>/schedule', methods=['PUT'])
+def update_device_content_schedule(assignment_id):
+    try:
+        data = request.get_json()
+
+        conn = sqlite3.connect('signage.db')
+
+        days_list = data.get('days_of_week', [])
+        if not days_list or len(days_list) == 0:
+            days_list = ['all']
+        days_json = json.dumps(days_list)
+
+        overlay_enabled = data.get('overlay_enabled')
+        overlay_position = data.get('overlay_position')
+        analytics_enabled = bool(data.get('analytics_enabled', False))
+        analytics_sample_rate = int(data.get('analytics_sample_rate') or 5)
+
+        conn.execute('''
+            UPDATE device_content
+            SET days_of_week = ?, display_duration = ?, start_time = ?, end_time = ?,
+                start_date = ?, end_date = ?, transition_type = ?, transition_duration = ?,
+                analytics_enabled = ?, analytics_sample_rate = ?,
+                overlay_enabled = ?, overlay_position = ?
             WHERE id = ?
         ''', (
             days_json,
@@ -1479,18 +965,90 @@ def update_device_content_schedule(assignment_id):
             data.get('transition_duration', 1.0),
             1 if analytics_enabled else 0,
             analytics_sample_rate,
+            None if overlay_enabled is None else (1 if overlay_enabled else 0),
+            overlay_position,
             assignment_id
         ))
-        
+
         conn.commit()
         conn.close()
-        
+
         logger.info(f"Device content {assignment_id} schedule updated with transitions")
         return jsonify({'success': 'Schedule updated successfully'})
-    
+
     except Exception as e:
         logger.error(f"Error updating device content schedule: {e}")
         return jsonify({'error': 'Failed to update schedule'}), 500
+
+# Reorder device content
+@app.route('/api/device/reorder-content', methods=['PUT'])
+def reorder_device_content():
+    try:
+        data = request.get_json() or {}
+        device_id = data.get('device_id')
+        content_order = data.get('content_order') or []
+
+        if not device_id:
+            return jsonify({'error': 'Device ID required'}), 400
+
+        conn = sqlite3.connect('signage.db')
+        for item in content_order:
+            conn.execute('''
+                UPDATE device_content
+                SET play_order = ?
+                WHERE id = ? AND device_id = ?
+            ''', (item.get('play_order'), item.get('assignment_id'), device_id))
+
+        conn.commit()
+        update_content_timestamp()
+        conn.close()
+
+        logger.info(f"Content reordered for device {device_id}")
+        return jsonify({'success': 'Content reordered successfully'})
+
+    except Exception as e:
+        logger.error(f"Error reordering content: {e}")
+        return jsonify({'error': 'Failed to reorder content'}), 500
+
+# Remove content from device
+@app.route('/api/remove-content/<int:assignment_id>', methods=['DELETE'])
+def remove_content(assignment_id):
+    try:
+        conn = sqlite3.connect('signage.db')
+        conn.execute('DELETE FROM device_content WHERE id = ?', (assignment_id,))
+        conn.commit()
+        update_content_timestamp()
+        conn.close()
+
+        logger.info(f"Content assignment {assignment_id} removed")
+        return jsonify({'success': 'Content assignment removed'})
+
+    except Exception as e:
+        logger.error(f"Error removing content: {e}")
+        return jsonify({'error': 'Failed to remove content'}), 500
+
+# Toggle device content pause
+@app.route('/api/device-content/<int:assignment_id>/pause', methods=['PUT'])
+def toggle_device_content_pause(assignment_id):
+    try:
+        conn = sqlite3.connect('signage.db')
+        cursor = conn.execute('SELECT is_active FROM device_content WHERE id = ?', (assignment_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            conn.close()
+            return jsonify({'error': 'Content assignment not found'}), 404
+
+        new_status = 0 if row[0] else 1
+        conn.execute('UPDATE device_content SET is_active = ? WHERE id = ?', (new_status, assignment_id))
+        conn.commit()
+        conn.close()
+
+        return jsonify({'success': True, 'is_paused': not bool(new_status)})
+
+    except Exception as e:
+        logger.error(f"Error toggling content pause: {e}")
+        return jsonify({'error': 'Failed to toggle content'}), 500
         
 # Delete device
 @app.route('/api/device/<device_id>', methods=['DELETE'])
@@ -1517,6 +1075,60 @@ def delete_device(device_id):
     except Exception as e:
         logger.error(f"Error deleting device: {e}")
         return jsonify({'error': 'Failed to delete device'}), 500
+
+# System settings
+@app.route('/api/system/settings')
+def get_system_settings():
+    try:
+        logo_filename = _get_setting('overlay_logo_filename')
+        overlay_logo_url = None
+        if logo_filename:
+            overlay_logo_url = f'http://{SERVER_IP}:5000/uploads/{logo_filename}'
+        return jsonify({
+            'overlay_logo_url': overlay_logo_url
+        })
+    except Exception as e:
+        logger.error(f"System settings error: {e}")
+        return jsonify({'error': 'Failed to get settings'}), 500
+
+@app.route('/api/system/overlay-logo', methods=['POST'])
+def upload_overlay_logo():
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        file = request.files['file']
+        if not file or file.filename == '':
+            return jsonify({'error': 'No file provided'}), 400
+
+        filename = secure_filename(file.filename)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        stored_name = f'overlay_logo_{timestamp}_{filename}'
+        save_path = os.path.join(app.config['UPLOAD_FOLDER'], stored_name)
+        file.save(save_path)
+
+        _set_setting('overlay_logo_filename', stored_name)
+
+        return jsonify({
+            'success': True,
+            'url': f'http://{SERVER_IP}:5000/uploads/{stored_name}'
+        })
+
+    except Exception as e:
+        logger.error(f"Overlay logo upload error: {e}")
+        return jsonify({'error': 'Failed to upload overlay logo'}), 500
+
+@app.route('/api/system/pin', methods=['PUT'])
+def update_admin_pin():
+    try:
+        data = request.get_json() or {}
+        pin = str(data.get('pin', '')).strip()
+        if len(pin) < 4:
+            return jsonify({'error': 'PIN must be at least 4 digits'}), 400
+        _set_setting('admin_pin_hash', _hash_pin(pin))
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"PIN update error: {e}")
+        return jsonify({'error': 'Failed to update PIN'}), 500
 # Add this new endpoint to your production_app.py file
 
 # Database cleanup endpoint
@@ -1646,6 +1258,124 @@ def ingest_playback_event():
         logger.error(f"Analytics ingest error: {e}")
         return jsonify({'error': 'Failed to ingest analytics'}), 500
 
+# Device playlist for Android client
+@app.route('/api/playlist/<device_id>')
+@require_device_auth
+def get_playlist(device_id):
+    logger.info("HIT get_playlist() production_app.py build=2026-02-08")
+    try:
+        conn = get_db_connection()
+
+        conn.execute('''
+            UPDATE devices
+            SET last_checkin = ?, ip_address = ?
+            WHERE device_id = ?
+        ''', (datetime.now(), request.remote_addr, device_id))
+        conn.commit()
+
+        now = datetime.now()
+        today = now.date()
+        current_time = now.time()
+        current_day = today.strftime('%a').lower()
+
+        cursor = conn.execute('''
+            SELECT dc.id as assignment_id, dc.media_id, m.filename, m.file_type,
+                   dc.display_duration,
+                   dc.days_of_week, dc.start_date, dc.end_date,
+                   dc.start_time, dc.end_time,
+                   dc.play_order, dc.transition_type, dc.transition_duration,
+                   dc.analytics_enabled, dc.analytics_sample_rate,
+                   dc.overlay_enabled, dc.overlay_position
+            FROM device_content dc
+            JOIN media m ON dc.media_id = m.id
+            WHERE dc.device_id = ?
+              AND dc.is_active = 1
+              AND (dc.start_date IS NULL OR dc.start_date <= ?)
+              AND (dc.end_date   IS NULL OR dc.end_date   >= ?)
+            ORDER BY dc.play_order, dc.created_at
+        ''', (device_id, today, today))
+
+        playlist = []
+        for row in cursor.fetchall():
+            (assignment_id, media_id, filename, file_type, duration,
+             days_json, start_date, end_date, start_time_str, end_time_str,
+             play_order, transition_type, transition_duration,
+             analytics_enabled, analytics_sample_rate,
+             overlay_enabled, overlay_position) = row
+
+            try:
+                days_of_week = json.loads(days_json) if days_json else ['all']
+            except Exception:
+                days_of_week = ['all']
+
+            day_matches = (
+                'all' in days_of_week or
+                current_day in days_of_week or
+                (current_day in ['mon', 'tue', 'wed', 'thu', 'fri'] and 'weekdays' in days_of_week) or
+                (current_day in ['sat', 'sun'] and 'weekends' in days_of_week)
+            )
+
+            time_matches = True
+            if start_time_str and end_time_str:
+                start_t = datetime.strptime(start_time_str, "%H:%M:%S").time() if len(start_time_str) > 5 else datetime.strptime(start_time_str, "%H:%M").time()
+                end_t = datetime.strptime(end_time_str, "%H:%M:%S").time() if len(end_time_str) > 5 else datetime.strptime(end_time_str, "%H:%M").time()
+                time_matches = start_t <= current_time <= end_t
+
+            if day_matches and time_matches:
+                playlist.append({
+                    'id': media_id,
+                    'assignment_id': assignment_id,
+                    'filename': filename,
+                    'file_type': file_type,
+                    'display_duration': duration,
+                    'play_order': play_order or 0,
+                    'transition_type': transition_type or 'fade',
+                    'transition_duration': transition_duration or 1.0,
+                    'analytics_enabled': bool(analytics_enabled) if analytics_enabled is not None else False,
+                    'analytics_sample_rate': analytics_sample_rate if analytics_sample_rate is not None else 5,
+                    'overlay_enabled': None if overlay_enabled is None else bool(overlay_enabled),
+                    'overlay_position': overlay_position,
+                    'url': f'http://{SERVER_IP}:5000/uploads/{filename}'
+                })
+
+        device_row = conn.execute('''
+            SELECT overlay_enabled, overlay_position, overlay_opacity, overlay_size, overlay_hide_on_video
+            FROM devices
+            WHERE device_id = ?
+        ''', (device_id,)).fetchone()
+
+        logo_filename = _get_setting('overlay_logo_filename')
+        overlay_url = f'http://{SERVER_IP}:5000/uploads/{logo_filename}' if logo_filename else ''
+
+        overlay = {
+            'enabled': bool(device_row['overlay_enabled']) if device_row and device_row['overlay_enabled'] is not None else True,
+            'position': device_row['overlay_position'] if device_row and device_row['overlay_position'] else 'top-right',
+            'opacity': float(device_row['overlay_opacity']) if device_row and device_row['overlay_opacity'] is not None else 0.6,
+            'size': float(device_row['overlay_size']) if device_row and device_row['overlay_size'] is not None else 0.1,
+            'hide_on_video': bool(device_row['overlay_hide_on_video']) if device_row and device_row['overlay_hide_on_video'] is not None else True,
+            'url': overlay_url
+        }
+
+        conn.close()
+        return jsonify({
+            'device_id': device_id,
+            'overlay': overlay,
+            'playlist': playlist
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error serving device playlist: {e}")
+        return jsonify({'error': 'Failed to get playlist'}), 500
+
+# File serving for uploads
+@app.route('/uploads/<path:filename>')
+def uploaded_file(filename):
+    try:
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    except Exception as e:
+        logger.error(f"File serve error: {e}")
+        return "File not found", 404
+
 # Analytics summary for a media item (with per-device breakdown)
 @app.route('/api/analytics/media/<int:media_id>')
 def analytics_media_summary(media_id):
@@ -1756,7 +1486,63 @@ def update_device_transitions(device_id):
         return jsonify({'message': 'Device transition settings updated successfully'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-       
+        
+@app.route('/api/register', methods=['POST'])
+def register_device():
+    """One-time device registration to obtain a per-device token."""
+    data = request.get_json(silent=True) or {}
+    device_id = (data.get('device_id') or request.headers.get('X-Device-Id') or "").strip()
+
+    if not device_id:
+        return jsonify({'error': 'bad_request', 'detail': 'device_id required'}), 400
+
+    try:
+        conn = get_db_connection()
+        row = conn.execute(
+            'SELECT device_id, is_active FROM devices WHERE device_id = ?',
+            (device_id,)
+        ).fetchone()
+
+        if row is None:
+            conn.execute('''
+                INSERT INTO devices (device_id, device_name, last_checkin, is_active, ip_address)
+                VALUES (?, ?, ?, 0, ?)
+            ''', (device_id, f'Device {device_id[:8]}', datetime.now(), request.remote_addr))
+            conn.commit()
+            conn.close()
+            return jsonify({
+                'error': 'forbidden',
+                'code': 'pending_approval',
+                'detail': 'Device created but inactive. Approve/activate in admin UI.'
+            }), 403
+
+        if int(row['is_active']) != 1:
+            conn.execute(
+                'UPDATE devices SET last_checkin = ?, ip_address = ? WHERE device_id = ?',
+                (datetime.now(), request.remote_addr, device_id)
+            )
+            conn.commit()
+            conn.close()
+            return jsonify({
+                'error': 'forbidden',
+                'code': 'pending_approval',
+                'detail': 'Device inactive. Approve/activate in admin UI.'
+            }), 403
+
+        conn.execute(
+            'UPDATE devices SET last_checkin = ?, ip_address = ? WHERE device_id = ?',
+            (datetime.now(), request.remote_addr, device_id)
+        )
+        conn.commit()
+        conn.close()
+
+        token = _get_or_create_device_token(device_id)
+        return jsonify({'device_id': device_id, 'token': token}), 200
+
+    except Exception:
+        logger.exception('Registration failed')
+        return jsonify({'error': 'server_error'}), 500
+
 if __name__ == '__main__':
     init_db()
     upgrade_database()
