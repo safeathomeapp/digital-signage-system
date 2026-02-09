@@ -1462,32 +1462,6 @@ def analytics_media_summary(media_id):
  
 # Add these routes to your production_app.py
 
-@app.route('/api/device-content/<int:assignment_id>/transition', methods=['PUT'])
-def update_content_transition(assignment_id):
-    """Update transition settings for content assignment"""
-    try:
-        data = request.json
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            UPDATE device_content 
-            SET transition_type = ?, transition_duration = ?
-            WHERE id = ?
-        ''', (
-            data.get('transition_type', 'fade'),
-            data.get('transition_duration', 1.0),
-            assignment_id
-        ))
-        
-        conn.commit()
-        conn.close()
-        
-        return jsonify({'message': 'Transition settings updated successfully'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/api/device/<device_id>/transitions', methods=['PUT'])
 def update_device_transitions(device_id):
     """Update transition settings for all content on a device"""
