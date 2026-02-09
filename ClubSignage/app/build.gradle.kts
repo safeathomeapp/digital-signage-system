@@ -11,8 +11,8 @@ android {
         applicationId = "com.yourcompany.signagefiretv"
         minSdk = 22  // Fire OS 7+
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -21,6 +21,34 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            // Uses env vars or Gradle properties; safe defaults keep debug builds working.
+            val storeFilePath = System.getenv("SIGNING_STORE_FILE")
+                ?: (project.findProperty("SIGNING_STORE_FILE") as String?)
+            val storePasswordValue = System.getenv("SIGNING_STORE_PASSWORD")
+                ?: (project.findProperty("SIGNING_STORE_PASSWORD") as String?)
+            val keyAliasValue = System.getenv("SIGNING_KEY_ALIAS")
+                ?: (project.findProperty("SIGNING_KEY_ALIAS") as String?)
+            val keyPasswordValue = System.getenv("SIGNING_KEY_PASSWORD")
+                ?: (project.findProperty("SIGNING_KEY_PASSWORD") as String?)
+
+            if (!storeFilePath.isNullOrBlank()) {
+                storeFile = file(storeFilePath)
+            }
+            if (!storePasswordValue.isNullOrBlank()) {
+                storePassword = storePasswordValue
+            }
+            if (!keyAliasValue.isNullOrBlank()) {
+                keyAlias = keyAliasValue
+            }
+            if (!keyPasswordValue.isNullOrBlank()) {
+                keyPassword = keyPasswordValue
+            }
         }
     }
 

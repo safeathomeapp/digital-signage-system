@@ -23,6 +23,24 @@ app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max
 # Device token store (file-backed)
 TOKEN_STORE_PATH = os.environ.get('SIGNAGE_TOKEN_STORE', 'device_tokens.json')
 _TOKEN_LOCK = threading.Lock()
+_RATE_LIMIT_LOCK = threading.Lock()
+_REGISTER_RATE_LIMIT = {}
+REGISTER_RATE_LIMIT_WINDOW_SEC = int(os.environ.get('SIGNAGE_REGISTER_WINDOW_SEC', '60'))
+REGISTER_RATE_LIMIT_MAX = int(os.environ.get('SIGNAGE_REGISTER_MAX', '15'))
+
+def _is_rate_limited(ip_address: str) -> bool:
+    now = time.time()
+    with _RATE_LIMIT_LOCK:
+        timestamps = _REGISTER_RATE_LIMIT.get(ip_address, [])
+        # prune old entries
+        cutoff = now - REGISTER_RATE_LIMIT_WINDOW_SEC
+        timestamps = [ts for ts in timestamps if ts >= cutoff]
+        if len(timestamps) >= REGISTER_RATE_LIMIT_MAX:
+            _REGISTER_RATE_LIMIT[ip_address] = timestamps
+            return True
+        timestamps.append(now)
+        _REGISTER_RATE_LIMIT[ip_address] = timestamps
+        return False
 
 def get_db_connection():
     conn = sqlite3.connect('signage.db')
@@ -216,6 +234,9 @@ def init_db():
             video_duration INTEGER
         )
     ''')
+
+    # Indexes to speed common lookups (no functional change)
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_media_id ON media (id)')
     
     # Add video_duration column if it doesn't exist
     try:
@@ -301,6 +322,7 @@ def init_db():
             FOREIGN KEY (device_id) REFERENCES devices (device_id)
         )
     ''')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_device_content_device_id ON device_content (device_id)')
     try:
         conn.execute('ALTER TABLE device_content ADD COLUMN video_duration INTEGER')
     except sqlite3.OperationalError:
@@ -358,6 +380,15 @@ def init_db():
 def allowed_file(filename):
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov', 'avi', 'webm', 'mkv'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def _media_path(filename: str) -> str:
+    return os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+def _media_exists(filename: str) -> bool:
+    try:
+        return os.path.isfile(_media_path(filename))
+    except Exception:
+        return False
 
 # Auto refresh
 def update_content_timestamp():
@@ -1322,6 +1353,9 @@ def get_playlist(device_id):
                 time_matches = start_t <= current_time <= end_t
 
             if day_matches and time_matches:
+                if not _media_exists(filename):
+                    logger.warning(f"Missing media file for assignment {assignment_id}: {filename}")
+                    continue
                 playlist.append({
                     'id': media_id,
                     'assignment_id': assignment_id,
@@ -1495,6 +1529,8 @@ def register_device():
 
     if not device_id:
         return jsonify({'error': 'bad_request', 'detail': 'device_id required'}), 400
+    if _is_rate_limited(request.remote_addr or "unknown"):
+        return jsonify({'error': 'rate_limited', 'detail': 'Too many registration attempts'}), 429
 
     try:
         conn = get_db_connection()

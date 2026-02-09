@@ -81,11 +81,18 @@
 		.device-checkboxes {
 			display: flex;
 			flex-wrap: wrap;
+			align-items: flex-start;
 			gap: 1rem;
 			padding: 1rem;
 			background-color: #f8f9fa;
 			border-radius: 0.5rem;
 			border: 1px solid #dee2e6;
+		}
+
+		.device-checkboxes > div {
+			align-self: flex-start;
+			flex: 1 1 240px;
+			min-width: 220px;
 		}
 
 		.device-checkbox-item {
@@ -98,6 +105,13 @@
 			transition: all 0.2s;
 			cursor: pointer;
 			min-width: 120px;
+			min-height: 44px;
+			width: 100%;
+			gap: 0.5rem;
+		}
+
+		.device-checkbox-item.all-devices {
+			min-height: 52px;
 		}
 
 		.device-checkbox-item:hover {
@@ -126,9 +140,75 @@
 			transform: scale(1.2);
 		}
 
-		.device-checkbox-item .device-name {
-			flex: 1;
-			font-size: 0.9rem;
+        .device-checkbox-item .device-name {
+            flex: 1;
+            font-size: 0.9rem;
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+        }
+		
+		.device-inline-panel {
+			display: none;
+			margin-top: 0.5rem;
+			padding: 0.75rem;
+			border: 1px solid #e5e7eb;
+			border-radius: 0.75rem;
+			background: #fff;
+			box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.05);
+			width: 100%;
+		}
+
+		.device-inline-panel.active {
+			display: block;
+		}
+
+		.device-inline-panel .form-label {
+			font-size: 0.75rem;
+		}
+
+		.device-inline-panel .form-control,
+		.device-inline-panel .form-select {
+			font-size: 0.85rem;
+		}
+
+		.device-checkbox-item.pending-device {
+			border-color: #dc3545;
+			background-color: #fff5f5;
+			box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.15);
+		}
+
+		.device-checkbox-item .device-cog {
+			margin-left: 0.5rem;
+			flex-shrink: 0;
+		}
+
+		.device-checkbox-item .content-count {
+			font-size: 0.8rem;
+			color: #6c757d;
+			min-width: 22px;
+			text-align: right;
+		}
+
+		@media (max-width: 768px) {
+			.device-checkboxes {
+				padding: 0.75rem;
+				gap: 0.75rem;
+			}
+
+			.device-checkboxes > div {
+				flex: 1 1 100%;
+				min-width: 0;
+			}
+
+			.device-checkbox-item {
+				padding: 0.5rem 0.75rem;
+			}
+
+			.device-inline-panel {
+				padding: 0.65rem;
+			}
 		}
 /* Selected devices info */
 		.selected-devices-info {
@@ -787,32 +867,32 @@
                                     <i class="fas fa-desktop me-2"></i>Device Content
                                 </h5>
                             </div>
-                            <div class="d-flex gap-2 align-items-center">
-                                <div id="deviceDeleteBin" class="delete-bin">
-                                    <i class="fas fa-trash-alt"></i>
-                                    <span>Bin</span>
-                                </div>
+                        <div class="d-flex gap-2 align-items-center">
+                            <div id="deviceDeleteBin" class="delete-bin">
+                                <i class="fas fa-trash-alt"></i>
+                                <span>Bin</span>
                             </div>
                         </div>
-                        
-                        <!-- Device Checkboxes -->
-                        <div id="deviceCheckboxes" class="device-checkboxes">
+                    </div>
+
+                    <!-- Device Checkboxes -->
+                    <div id="deviceCheckboxes" class="device-checkboxes">
                             <div class="text-center w-100">
                                 <div class="spinner-border spinner-border-sm" role="status"></div>
                                 <span class="ms-2">Loading devices...</span>
                             </div>
                         </div>
                         
-                        <!-- Compact Drop Zone -->
-                        <div class="compact-drop-zone mt-2" id="compactDropZone" style="display: none;">
-                            <i class="fas fa-plus-circle me-2"></i>
-                            <span class="drop-text">Drag media here to assign to selected devices</span>
-                        </div>
-                        
                         <!-- Selected Devices Info -->
                         <div id="selectedDevicesInfo" class="selected-devices-info hidden">
                             <i class="fas fa-info-circle me-2"></i>
                             <span id="selectedDevicesText">No devices selected</span>
+                        </div>
+
+                        <!-- Compact Drop Zone -->
+                        <div class="compact-drop-zone mt-2" id="compactDropZone" style="display: none;">
+                            <i class="fas fa-plus-circle me-2"></i>
+                            <span class="drop-text">Drag media here to assign to selected devices</span>
                         </div>
                     </div>
                     
@@ -1119,19 +1199,105 @@
             // Add individual device checkboxes
 			currentDevices.forEach(device => {
 				const displayName = device.display_name || device.device_name;
+				const pending = !device.is_active;
+				const tooltip = pending ? 'New device. Click the cog to activate and set details.' : '';
 				html += `
-					<div class="device-checkbox-item" onclick="toggleDevice('${device.device_id}')">
-						<input type="checkbox" id="device_${device.device_id}" 
-							   onchange="handleDeviceChange(event, '${device.device_id}')"
-							   onclick="event.stopPropagation()">
-						<span class="device-name">${displayName}</span>
-						<span class="content-count">${device.content_count}</span>
+					<div>
+						<div class="device-checkbox-item ${pending ? 'pending-device' : ''}" onclick="toggleDevice('${device.device_id}')" title="${tooltip}">
+							<input type="checkbox" id="device_${device.device_id}" 
+								   onchange="handleDeviceChange(event, '${device.device_id}')"
+								   onclick="event.stopPropagation()">
+							<span class="device-name">${displayName}</span>
+							<span class="content-count">${device.content_count}</span>
+							${pending ? '<span class="badge bg-danger">New</span>' : ''}
+							<button class="btn btn-sm btn-outline-secondary device-cog" onclick="toggleDeviceInlinePanel(event, '${device.device_id}')" title="Device settings">
+								<i class="fas fa-cog"></i>
+							</button>
+						</div>
+						<div class="device-inline-panel" id="deviceInline_${device.device_id}">
+							${renderDeviceInlinePanel(device)}
+						</div>
 					</div>
 				`;
 			});
             
             container.innerHTML = html;
         }
+
+		function renderDeviceInlinePanel(device) {
+			const overlayPos = device.overlay_position || 'top-right';
+			const overlayOpacity = Math.round((device.overlay_opacity ?? 0.6) * 100);
+			const overlaySize = Math.round((device.overlay_size ?? 0.1) * 100);
+			const overlayEnabled = (device.overlay_enabled ?? true);
+			const overlayHideOnVideo = (device.overlay_hide_on_video ?? true);
+			const pending = !device.is_active;
+			return `
+				<div class="row g-2">
+					<div class="col-12">
+						<label class="form-label small">Custom Name</label>
+						<input type="text" class="form-control form-control-sm" id="name_${device.device_id}" value="${device.custom_name || ''}">
+					</div>
+					<div class="col-12">
+						<label class="form-label small">Location</label>
+						<input type="text" class="form-control form-control-sm" id="location_${device.device_id}" value="${device.location || ''}">
+					</div>
+					<div class="col-12 d-flex gap-2">
+						${pending ? `
+							<button class="btn btn-sm btn-success" onclick="approveDevice('${device.device_id}')">
+								<i class="fas fa-check"></i> Activate
+							</button>
+						` : ''}
+						<button class="btn btn-sm btn-primary" onclick="saveDeviceInfo('${device.device_id}')">
+							<i class="fas fa-save"></i> Save
+						</button>
+					</div>
+				</div>
+				<hr class="my-2">
+				<div class="row g-2 align-items-end">
+					<div class="col-6">
+						<label class="form-label small">Overlay Position</label>
+						<select class="form-select form-select-sm" id="overlayPos_${device.device_id}">
+							<option value="top-left" ${overlayPos === 'top-left' ? 'selected' : ''}>Top Left</option>
+							<option value="top-right" ${overlayPos === 'top-right' ? 'selected' : ''}>Top Right</option>
+							<option value="bottom-left" ${overlayPos === 'bottom-left' ? 'selected' : ''}>Bottom Left</option>
+							<option value="bottom-right" ${overlayPos === 'bottom-right' ? 'selected' : ''}>Bottom Right</option>
+						</select>
+					</div>
+					<div class="col-3">
+						<label class="form-label small">Opacity %</label>
+						<input type="number" class="form-control form-control-sm" min="0" max="100"
+							   id="overlayOpacity_${device.device_id}" value="${overlayOpacity}">
+					</div>
+					<div class="col-3">
+						<label class="form-label small">Size %</label>
+						<input type="number" class="form-control form-control-sm" min="5" max="30"
+							   id="overlaySize_${device.device_id}" value="${overlaySize}">
+					</div>
+					<div class="col-12">
+						<div class="form-check">
+							<input class="form-check-input" type="checkbox" id="overlayEnabled_${device.device_id}" ${overlayEnabled ? 'checked' : ''}>
+							<label class="form-check-label small" for="overlayEnabled_${device.device_id}">Overlay enabled</label>
+						</div>
+						<div class="form-check">
+							<input class="form-check-input" type="checkbox" id="overlayHideOnVideo_${device.device_id}" ${overlayHideOnVideo ? 'checked' : ''}>
+							<label class="form-check-label small" for="overlayHideOnVideo_${device.device_id}">Hide on videos</label>
+						</div>
+					</div>
+					<div class="col-12">
+						<button class="btn btn-sm btn-success w-100" onclick="saveDeviceOverlayFor('${device.device_id}')">
+							<i class="fas fa-save"></i> Save Overlay
+						</button>
+					</div>
+				</div>
+			`;
+		}
+
+		function toggleDeviceInlinePanel(event, deviceId) {
+			event.stopPropagation();
+			const panel = document.getElementById(`deviceInline_${deviceId}`);
+			if (!panel) return;
+			panel.classList.toggle('active');
+		}
 
         // Handle "ALL" checkbox toggle
         function toggleAllDevices() {
