@@ -407,13 +407,6 @@ def device_management():
     ##return render_template('devices.html', server_ip=SERVER_IP)
     return redirect('/')
     
-@app.route('/device/<device_id>')
-def device_detail(device_id):
-    return render_template('device_detail.html', server_ip=SERVER_IP, device_id=device_id)
-
-@app.route('/dashboard')
-def dashboard():
-    return render_template('dashboard.html', server_ip=SERVER_IP)
 
 # FIXED Upload endpoint with video duration handling
 @app.route('/upload', methods=['POST'])
