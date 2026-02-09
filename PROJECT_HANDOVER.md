@@ -260,7 +260,7 @@ Current behavior:
 No changes will be made without your approval. Below are recommended hardening tasks.
 
 Security and auth:
-1. Add basic admin password for UI
+1. Add basic admin PIN gate for UI (DONE)
 2. Rate limit registration endpoint (prevent spam)
 
 Reliability:
@@ -326,6 +326,11 @@ Monitoring:
 4. If you change schema, update both code and test on fresh DB.
 5. Active development branch: `dev` (merge to `main` for releases).
 6. Default admin PIN is `1234` unless `SIGNAGE_ADMIN_PIN` is set in environment.
+
+Admin UI access:
+1. Admin UI is gated by PIN (session-based).
+2. Verify endpoint: `POST /api/system/pin/verify`
+3. Logout endpoint: `POST /api/system/logout`
 
 ---
 

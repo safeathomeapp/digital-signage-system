@@ -199,6 +199,23 @@ Everything has been validated on:
    - Offline cache fallback
    - DPAD navigation
 
+--- 
+
+## Quick Install (Windows)
+
+1. Run `setup_server.ps1` (creates venv, installs deps, initializes DB).
+2. Run `start_server.bat` to launch the server.
+
+If the admin PIN is forgotten, temporarily start the server with:
+```
+SIGNAGE_ADMIN_PIN=1234
+```
+Then update the PIN from Settings in the UI.
+
+You can also run:
+- `RESET_PIN.ps1`
+- `RESET_PIN.bat`
+
 ---
 
 ## Explicitly Deferred (Do Not Do Yet)
@@ -231,6 +248,19 @@ These belong to **Phase 4+** only.
 - Do not “improve” the contract without updating both sides.
 - Active development branch: `dev` (smaller fixes/features land here before merging to `main`).
 - Default admin PIN is `1234` unless `SIGNAGE_ADMIN_PIN` is set in environment.
+
+## Admin UI Access (PIN Gate)
+
+- The admin UI is gated by a session-based PIN.
+- Login prompt appears on page load.
+- Logout button clears the session.
+- Verify endpoint: `POST /api/system/pin/verify`
+
+## Security Notes (LAN-Only)
+
+- LAN trust model is assumed.
+- Admin UI is PIN-gated; device APIs use per-device tokens.
+- No external auth or encryption is enabled (by design).
 
 ## Analytics Notes
 

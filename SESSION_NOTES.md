@@ -47,3 +47,8 @@ Quick handover summary for next session.
 2. Verify UI polish on inline device settings (spacing, mobile).
 3. Audit unused files and unused endpoints.
 
+## Recent Changes
+
+- Added admin PIN gate with session-based login + logout.
+- Added `setup_server.ps1` for one-run server setup.
+- Updated `start_server.bat` to use `.venv`.
