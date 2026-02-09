@@ -900,59 +900,6 @@ def get_device_content(device_id):
         logger.error(f"Error getting device content: {e}")
         return jsonify({'error': 'Failed to get device content'}), 500
 
-# Update media schedule
-@app.route('/api/media/<int:media_id>/schedule', methods=['PUT'])
-def update_media_schedule(media_id):
-    try:
-        data = request.get_json()
-        
-        conn = sqlite3.connect('signage.db')
-        
-        # Get days of week, default to 'all' if empty
-        days_list = data.get('days_of_week', [])
-        if not days_list or len(days_list) == 0:
-            days_list = ['all']
-        days_json = json.dumps(days_list)
-        
-        # Update all device_content records for this media
-        overlay_enabled = data.get('overlay_enabled')
-        overlay_position = data.get('overlay_position')
-        analytics_enabled = bool(data.get('analytics_enabled', False))
-        analytics_sample_rate = int(data.get('analytics_sample_rate') or 5)
-
-        conn.execute('''
-            UPDATE device_content 
-            SET days_of_week = ?, display_duration = ?, start_time = ?, end_time = ?, 
-                start_date = ?, end_date = ?, transition_type = ?, transition_duration = ?,
-                analytics_enabled = ?, analytics_sample_rate = ?,
-                overlay_enabled = ?, overlay_position = ?
-            WHERE media_id = ?
-        ''', (
-            days_json,
-            data.get('display_duration', 10),
-            data.get('start_time'),
-            data.get('end_time'),
-            data.get('start_date'),
-            data.get('end_date'),
-            data.get('transition_type', 'fade'),
-            data.get('transition_duration', 1.0),
-            1 if analytics_enabled else 0,
-            analytics_sample_rate,
-            None if overlay_enabled is None else (1 if overlay_enabled else 0),
-            overlay_position,
-            media_id
-        ))
-        
-        conn.commit()
-        conn.close()
-        
-        logger.info(f"Media {media_id} schedule updated with transitions")
-        return jsonify({'success': 'Schedule updated successfully'})
-    
-    except Exception as e:
-        logger.error(f"Error updating device content schedule: {e}")
-        return jsonify({'error': 'Failed to update schedule'}), 500
-
 # Update device content schedule (per assignment)
 @app.route('/api/device-content/<int:assignment_id>/schedule', methods=['PUT'])
 def update_device_content_schedule(assignment_id):
