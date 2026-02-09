@@ -1,6 +1,6 @@
 # Digital Signage System – Expanded Project Handover (Senior Notes)
 
-_Last updated: 2026-02-08_  
+_Last updated: 2026-02-09_  
 _Primary author: Senior maintainer (Codex)_  
 _Status: Stable on LAN and emulator; hardware TV validation pending_
 
@@ -219,7 +219,8 @@ Key server files:
 8. transition_type / transition_duration
 
 `playback_analytics`:
-1. Reserved for future use (currently unused in client)
+1. Populated when analytics is enabled per assignment
+2. Sampled at default rate of every 5 plays
 
 ---
 
@@ -227,10 +228,20 @@ Key server files:
 
 Current behavior:
 1. Index page lists devices and uploads.
-2. Pending devices show a badge and “Approve” button.
-3. Media can be uploaded with schedule metadata.
+2. Pending devices show a badge and “Approve” button (highlighted).
+3. Media can be uploaded with schedule metadata (drag/drop zone is primary).
 4. Toast notifications show admin actions (top-center).
-4. Overlay & PIN modal manages global logo and admin PIN.
+5. Overlay & PIN modal manages global logo and admin PIN.
+6. Device tiles include a cog for inline per-device settings (name/location/overlay).
+
+---
+
+## 9.1) Analytics Reporting (Operational)
+
+1. Analytics are recorded per content assignment when **Record stats** is enabled.
+2. Sampling defaults to every **5 plays** to reduce noise.
+3. Reports are **manual** (no scheduled job). Recommended cadence: **monthly**.
+4. Use `GET /api/analytics/media/<media_id>?from=YYYY-MM-DD&to=YYYY-MM-DD` to build summaries and export.
 
 ---
 
@@ -287,6 +298,7 @@ Admin UI:
 Monitoring:
 1. Health dashboard
 2. Playback analytics collection from devices
+3. Monthly analytics reporting/export (manual)
 
 ---
 

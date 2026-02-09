@@ -153,9 +153,11 @@ The Android app must be switched **before deploying to real hardware**.
 
 ### Admin UI
 - `templates/index.html`
-  - Pending vs Active device badges
+  - Pending vs Active device badges (new devices highlighted)
   - Approve button wired to backend
-  - Overlay & PIN settings modal
+  - Overlay & PIN settings modal (global)
+  - Inline per-device settings via cog on device tiles (name/location/overlay)
+  - Drag-and-drop media upload zone (primary upload path)
   - Per-content analytics toggle (default every 5 plays)
   - Stats badge on assignments when analytics is enabled
   - Toast notifications for UI actions (top-center)
@@ -230,6 +232,15 @@ These belong to **Phase 4+** only.
 - Active development branch: `dev` (smaller fixes/features land here before merging to `main`).
 - Default admin PIN is `1234` unless `SIGNAGE_ADMIN_PIN` is set in environment.
 
+## Analytics Notes
+
+- Analytics are recorded **per content assignment** only when **Record stats** is enabled.
+- Sample rate defaults to **every 5 plays** (reduces noise; can be adjusted later in code if needed).
+- **Reports are not auto-generated.** Recommended workflow:
+  - Generate **monthly summaries** per media using `GET /api/analytics/media/<media_id>?from=YYYY-MM-DD&to=YYYY-MM-DD`.
+  - For operational use, run reports shortly after month end (e.g., first week of the following month).
+  - Export results into a PDF/CSV for sharing.
+
 ---
 
-_Last updated: 2026-02-08_
+_Last updated: 2026-02-09_
