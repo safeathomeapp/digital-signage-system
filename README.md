@@ -241,6 +241,7 @@ These belong to **Phase 4+** only.
   - For operational use, run reports shortly after month end (e.g., first week of the following month).
   - Export results into a PDF/CSV for sharing.
 - **Future idea:** roll up analytics into daily/weekly summary tables and purge raw events to control table growth.
+- **Future idea:** add a backend “refresh app” command so devices can re-pull state when changes aren’t picked up (tie into offline/server unreachable handling).
 
 ---
 
