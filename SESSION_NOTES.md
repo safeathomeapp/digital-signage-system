@@ -52,3 +52,5 @@ Quick handover summary for next session.
 - Added admin PIN gate with session-based login + logout.
 - Added `setup_server.ps1` for one-run server setup.
 - Updated `start_server.bat` to use `.venv`.
+- Added per-device orientation setting (landscape/portrait) and UI indicator.
+- Playlist refresh polling now keeps rotation when items change.

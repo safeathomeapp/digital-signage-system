@@ -233,6 +233,7 @@ Current behavior:
 4. Toast notifications show admin actions (top-center).
 5. Overlay & PIN modal manages global logo and admin PIN.
 6. Device tiles include a cog for inline per-device settings (name/location/overlay).
+7. Device orientation can be set per device (landscape/portrait).
 
 ---
 
@@ -544,6 +545,7 @@ Playlist and scheduling behavior:
 5. Missing or invalid `days_of_week` defaults to `['all']`.
 6. Transition types supported by client: `none`, `fade`, `slide-left`, `slide-right`, `slide-up`, `slide-down`, `zoom-in`, `zoom-out`.
 7. Overlay config is delivered at top-level in playlist response under `overlay`.
+7.1 `display_orientation` is delivered at top-level for per-device orientation.
 8. Overlay logo is anchored to screen corners (not image content); aspect ratio preserved.
 9. Playlist items include `assignment_id` for analytics correlation.
 

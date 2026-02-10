@@ -180,7 +180,7 @@
 			transform: scale(1.2);
 		}
 
-        .device-checkbox-item .device-name {
+		.device-checkbox-item .device-name {
             flex: 1;
             font-size: 0.9rem;
 			min-width: 0;
@@ -188,6 +188,22 @@
 			text-overflow: ellipsis;
 			white-space: nowrap;
         }
+
+		.device-orientation {
+			display: inline-block;
+			width: 16px;
+			height: 12px;
+			border: 1px solid #1d4ed8;
+			border-radius: 2px;
+			background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+			flex-shrink: 0;
+			margin-left: 0.5rem;
+		}
+
+		.device-orientation.portrait {
+			width: 12px;
+			height: 16px;
+		}
 		
 		.device-inline-panel {
 			display: none;
@@ -498,9 +514,10 @@
         .media-thumbnail {
             width: 100px;
 			height: 100px;
-            object-fit: cover;
+            object-fit: contain;
             border-radius: 0.5rem;
             border: 2px solid #dee2e6;
+			background-color: #e5e7eb;
         }
 
         .thumbnail-placeholder {
@@ -519,10 +536,11 @@
 		.video-thumbnail {
 			width: 100px;
 			height: 100px;
-			object-fit: cover;
+			object-fit: contain;
 			border-radius: 0.5rem;
 			border: 2px solid #dee2e6;
 			position: relative;
+			background-color: #e5e7eb;
 		}
 
 		.video-thumbnail::after {
@@ -915,9 +933,6 @@
                     <div class="bg-white p-3 rounded mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <div class="d-flex align-items-center gap-2">
-                                <button class="btn btn-dark btn-sm" data-bs-toggle="modal" data-bs-target="#manageDevicesModal" title="Device Settings">
-                                    <i class="fas fa-cog"></i>
-                                </button>
                                 <h5 class="mb-0">
                                     <i class="fas fa-desktop me-2"></i>Device Content
                                 </h5>
@@ -1016,31 +1031,6 @@
             </div>
         </div>
     </div>
-	<!-- Device Management Modal -->
-    <div class="modal fade" id="manageDevicesModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="fas fa-cog me-2"></i>Device Settings
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="deviceManagementList">
-                        <div class="text-center">
-                            <div class="spinner-border" role="status"></div>
-                            <p class="mt-2">Loading devices...</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Overlay & PIN Settings Modal -->
     <div class="modal fade" id="systemSettingsModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
@@ -1359,6 +1349,7 @@
 			currentDevices.forEach(device => {
 				const displayName = device.display_name || device.device_name;
 				const pending = !device.is_active;
+				const orientation = (device.display_orientation || 'landscape').toLowerCase();
 				const tooltip = pending ? 'New device. Click the cog to activate and set details.' : '';
 				html += `
 					<div>
@@ -1367,6 +1358,7 @@
 								   onchange="handleDeviceChange(event, '${device.device_id}')"
 								   onclick="event.stopPropagation()">
 							<span class="device-name">${displayName}</span>
+							<span class="device-orientation ${orientation === 'portrait' ? 'portrait' : ''}" title="Orientation: ${orientation}"></span>
 							<span class="content-count">${device.content_count}</span>
 							${pending ? '<span class="badge bg-danger">New</span>' : ''}
 							<button class="btn btn-sm btn-outline-secondary device-cog" onclick="toggleDeviceInlinePanel(event, '${device.device_id}')" title="Device settings">
@@ -1389,6 +1381,7 @@
 			const overlaySize = Math.round((device.overlay_size ?? 0.1) * 100);
 			const overlayEnabled = (device.overlay_enabled ?? true);
 			const overlayHideOnVideo = (device.overlay_hide_on_video ?? true);
+			const orientation = (device.display_orientation || 'landscape');
 			const pending = !device.is_active;
 			return `
 				<div class="row g-2">
@@ -1400,15 +1393,19 @@
 						<label class="form-label small">Location</label>
 						<input type="text" class="form-control form-control-sm" id="location_${device.device_id}" value="${device.location || ''}">
 					</div>
+					<div class="col-12">
+						<label class="form-label small">Display Orientation</label>
+						<select class="form-select form-select-sm" id="orientation_${device.device_id}">
+							<option value="landscape" ${orientation === 'landscape' ? 'selected' : ''}>Landscape</option>
+							<option value="portrait" ${orientation === 'portrait' ? 'selected' : ''}>Portrait</option>
+						</select>
+					</div>
 					<div class="col-12 d-flex gap-2">
 						${pending ? `
 							<button class="btn btn-sm btn-success" onclick="approveDevice('${device.device_id}')">
 								<i class="fas fa-check"></i> Activate
 							</button>
 						` : ''}
-						<button class="btn btn-sm btn-primary" onclick="saveDeviceInfo('${device.device_id}')">
-							<i class="fas fa-save"></i> Save
-						</button>
 					</div>
 				</div>
 				<hr class="my-2">
@@ -1443,8 +1440,8 @@
 						</div>
 					</div>
 					<div class="col-12">
-						<button class="btn btn-sm btn-success w-100" onclick="saveDeviceOverlayFor('${device.device_id}')">
-							<i class="fas fa-save"></i> Save Overlay
+						<button class="btn btn-sm btn-primary w-100" onclick="saveDeviceInfo('${device.device_id}')">
+							<i class="fas fa-save"></i> Save
 						</button>
 					</div>
 				</div>
@@ -2713,124 +2710,10 @@
             }
         }
 
-        // Device management functions
-        function loadDeviceManagement() {
-            const container = document.getElementById('deviceManagementList');
-            
-            if (currentDevices.length === 0) {
-                container.innerHTML = '<p class="text-muted text-center">No devices found.</p>';
-                return;
-            }
-            
-            let html = '';
-            currentDevices.forEach(device => {
-                const displayName = device.display_name || device.device_name;
-                const overlayPos = device.overlay_position || 'top-right';
-                const overlayOpacity = Math.round((device.overlay_opacity ?? 0.6) * 100);
-                const overlaySize = Math.round((device.overlay_size ?? 0.1) * 100);
-                const overlayEnabled = (device.overlay_enabled ?? true);
-                const overlayHideOnVideo = (device.overlay_hide_on_video ?? true);
-                html += `
-                    <div class="card mb-3">
-                        <div class="card-body">
-                            <div class="row align-items-center">
-                                <div class="col-md-3">
-                                    <strong>Device:</strong><br>
-                                    ${displayName}
-                                    <div class="text-muted small">${device.device_id}</div>
-                                </div>
-                                <div class="col-md-3">
-                                    <strong>IP Address:</strong><br>
-                                    ${device.ip_address || 'Unknown'}
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="mb-2">
-                                        <label class="form-label small">Custom Name:</label>
-                                        <input type="text" class="form-control form-control-sm" 
-                                               id="name_${device.device_id}" 
-                                               value="${device.custom_name || ''}" 
-                                               placeholder="Enter custom name">
-                                    </div>
-                                    <div>
-                                        <label class="form-label small">Location:</label>
-                                        <input type="text" class="form-control form-control-sm" 
-                                               id="location_${device.device_id}" 
-                                               value="${device.location || ''}" 
-                                               placeholder="Enter location">
-                                    </div>
-                                </div>
-                                <div class="col-md-2">
-                                  ${device.is_active ? `
-                                    <div class="badge bg-success w-100 mb-2">Active</div>
-                                  ` : `
-                                    <div class="badge bg-warning text-dark w-100 mb-2">Pending</div>
-                                    <button class="btn btn-success btn-sm w-100 mb-2"
-                                            onclick="approveDevice('${device.device_id}')">
-                                      <i class="fas fa-check"></i> Approve
-                                    </button>
-                                  `}
-                                  <button class="btn btn-primary btn-sm w-100 mb-2"
-                                          onclick="saveDeviceInfo('${device.device_id}')">
-                                    <i class="fas fa-save"></i> Save
-                                  </button>
-                                  <button class="btn btn-outline-danger btn-sm w-100"
-                                          onclick="deleteDevice('${device.device_id}', '${device.device_name}')">
-                                    <i class="fas fa-trash"></i> Delete
-                                  </button>
-                                </div>
-                            </div>
-                            <div class="row mt-3 g-3">
-                                <div class="col-12">
-                                    <hr class="my-2">
-                                    <h6 class="mb-2">Overlay Settings</h6>
-                                </div>
-                            </div>
-                            <div class="row g-3 align-items-end">
-                                <div class="col-md-3">
-                                    <label class="form-label small">Overlay Position</label>
-                                    <select class="form-select form-select-sm" id="overlayPos_${device.device_id}">
-                                        <option value="top-left" ${overlayPos === 'top-left' ? 'selected' : ''}>Top Left</option>
-                                        <option value="top-right" ${overlayPos === 'top-right' ? 'selected' : ''}>Top Right</option>
-                                        <option value="bottom-left" ${overlayPos === 'bottom-left' ? 'selected' : ''}>Bottom Left</option>
-                                        <option value="bottom-right" ${overlayPos === 'bottom-right' ? 'selected' : ''}>Bottom Right</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-2">
-                                    <label class="form-label small">Opacity %</label>
-                                    <input type="number" class="form-control form-control-sm" min="0" max="100"
-                                           id="overlayOpacity_${device.device_id}" value="${overlayOpacity}">
-                                </div>
-                                <div class="col-md-2">
-                                    <label class="form-label small">Size %</label>
-                                    <input type="number" class="form-control form-control-sm" min="5" max="30"
-                                           id="overlaySize_${device.device_id}" value="${overlaySize}">
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="overlayEnabled_${device.device_id}" ${overlayEnabled ? 'checked' : ''}>
-                                        <label class="form-check-label" for="overlayEnabled_${device.device_id}">Enabled</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="overlayHideOnVideo_${device.device_id}" ${overlayHideOnVideo ? 'checked' : ''}>
-                                        <label class="form-check-label" for="overlayHideOnVideo_${device.device_id}">Hide on videos</label>
-                                    </div>
-                                </div>
-                                <div class="col-md-2">
-                                    <button class="btn btn-success btn-sm w-100"
-                                            onclick="saveDeviceOverlayFor('${device.device_id}')">
-                                        <i class="fas fa-save"></i> Save Overlay
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-            container.innerHTML = html;
-        }
+        
 
-		async function approveDevice(deviceId) {
-		  try {
+        async function approveDevice(deviceId) {
+          try {
 			const res = await fetch(`/api/device/${deviceId}/activate`, { method: 'PUT' });
 			const data = await res.json().catch(() => ({}));
 
@@ -2841,7 +2724,6 @@
 
 			// refresh UI
 			await loadDevices();
-			loadDeviceManagement(); // re-render modal list
 			updateSelectedDevicesInfo();
 			if (selectedDeviceIds.length > 0) loadCommonContent();
 
@@ -2853,6 +2735,62 @@
 
         async function saveDeviceInfo(deviceId) {
             const customName = document.getElementById(`name_${deviceId}`).value.trim();
+            const orientationEl = document.getElementById(`orientation_${deviceId}`);
+            const location = document.getElementById(`location_${deviceId}`).value.trim();
+            const payload = {
+                custom_name: customName,
+                location: location
+            };
+            if (orientationEl) {
+                payload.display_orientation = orientationEl.value;
+            }
+
+            try {
+                const response = await fetch(`/api/device/${deviceId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    notify('Failed to update device information');
+                    return;
+                }
+
+                const overlayPosEl = document.getElementById(`overlayPos_${deviceId}`);
+                const overlayOpacityEl = document.getElementById(`overlayOpacity_${deviceId}`);
+                const overlaySizeEl = document.getElementById(`overlaySize_${deviceId}`);
+                const overlayEnabledEl = document.getElementById(`overlayEnabled_${deviceId}`);
+                const overlayHideEl = document.getElementById(`overlayHideOnVideo_${deviceId}`);
+
+                if (overlayPosEl && overlayOpacityEl && overlaySizeEl && overlayEnabledEl && overlayHideEl) {
+                    const overlayPayload = {
+                        overlay_position: overlayPosEl.value,
+                        overlay_opacity: parseFloat(overlayOpacityEl.value) / 100,
+                        overlay_size: parseFloat(overlaySizeEl.value) / 100,
+                        overlay_enabled: overlayEnabledEl.checked,
+                        overlay_hide_on_video: overlayHideEl.checked
+                    };
+
+                    const overlayResp = await fetch(`/api/device/${deviceId}/overlay`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(overlayPayload)
+                    });
+
+                    if (!overlayResp.ok) {
+                        const result = await overlayResp.json().catch(() => ({}));
+                        notify(result.error || 'Saved device info, but overlay failed');
+                        return;
+                    }
+                }
+
+                await loadDevices();
+                notify('Device settings saved');
+            } catch (error) {
+                notify('Error: ' + error.message);
+            }
+        }
 
         async function saveDeviceOverlayFor(deviceId) {
             const overlay_position = document.getElementById(`overlayPos_${deviceId}`).value;
@@ -2875,7 +2813,6 @@
                 });
                 if (resp.ok) {
                     await loadDevices();
-                    loadDeviceManagement();
                     notify('Overlay settings saved');
                 } else {
                     const result = await resp.json();
@@ -2886,28 +2823,6 @@
             }
         }
 
-            const location = document.getElementById(`location_${deviceId}`).value.trim();
-            
-            try {
-                const response = await fetch(`/api/device/${deviceId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        custom_name: customName,
-                        location: location
-                    })
-                });
-                
-                if (response.ok) {
-                    loadDevices();
-                    notify('Device information updated successfully');
-                } else {
-                    notify('Failed to update device information');
-                }
-            } catch (error) {
-                notify('Error: ' + error.message);
-            }
-        }
 
         async function deleteDevice(deviceId, deviceName) {
             try {
@@ -2933,7 +2848,6 @@
                 if (deleteResponse.ok) {
                     selectedDeviceIds = selectedDeviceIds.filter(id => id !== deviceId);
                     await loadDevices(); 
-                    loadDeviceManagement(); 
                     
                     if (selectedDeviceIds.length > 0) {
                         loadCommonContent();
@@ -2959,11 +2873,6 @@
                 notify('Delete error: ' + error.message);
             }
         }
-
-        // Load device management when modal opens
-        document.getElementById('manageDevicesModal').addEventListener('shown.bs.modal', function() {
-            loadDeviceManagement();
-        });
 
         document.getElementById('systemSettingsModal').addEventListener('shown.bs.modal', function() {
             loadOverlaySettings();

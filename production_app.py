@@ -271,6 +271,7 @@ def init_db():
             is_active BOOLEAN DEFAULT 1,
             ip_address TEXT,
             app_version TEXT DEFAULT "1.0",
+            display_orientation TEXT DEFAULT "landscape",
             overlay_enabled BOOLEAN DEFAULT 1,
             overlay_position TEXT DEFAULT "top-right",
             overlay_opacity REAL DEFAULT 0.6,
@@ -283,6 +284,10 @@ def init_db():
     # Add overlay columns if missing
     try:
         conn.execute('ALTER TABLE devices ADD COLUMN overlay_enabled BOOLEAN DEFAULT 1')
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute('ALTER TABLE devices ADD COLUMN display_orientation TEXT DEFAULT "landscape"')
     except sqlite3.OperationalError:
         pass
     try:
@@ -747,7 +752,7 @@ def get_devices():
         conn = get_db_connection()
         cursor = conn.execute('''
             SELECT d.device_id, d.device_name, d.custom_name, d.location, d.last_checkin,
-                   d.is_active, d.ip_address, d.app_version, d.created_at,
+                   d.is_active, d.ip_address, d.app_version, d.created_at, d.display_orientation,
                    d.overlay_enabled, d.overlay_position, d.overlay_opacity, d.overlay_size,
                    d.overlay_hide_on_video,
                    COUNT(dc.id) as content_count
@@ -756,7 +761,7 @@ def get_devices():
                 AND dc.is_active = 1
                 AND dc.media_id IN (SELECT id FROM media)
             GROUP BY d.device_id, d.device_name, d.custom_name, d.location, d.last_checkin,
-                     d.is_active, d.ip_address, d.app_version, d.created_at
+                     d.is_active, d.ip_address, d.app_version, d.created_at, d.display_orientation
             ORDER BY d.last_checkin DESC
         ''')
 
@@ -774,6 +779,7 @@ def get_devices():
                     'ip_address': row['ip_address'],
                     'app_version': row['app_version'],
                     'created_at': row['created_at'],
+                    'display_orientation': row['display_orientation'] or 'landscape',
                     'overlay_enabled': bool(row['overlay_enabled']) if row['overlay_enabled'] is not None else True,
                     'overlay_position': row['overlay_position'] or 'top-right',
                     'overlay_opacity': float(row['overlay_opacity']) if row['overlay_opacity'] is not None else 0.6,
@@ -798,18 +804,21 @@ def update_device(device_id):
         data = request.get_json() or {}
         custom_name = data.get('custom_name', '')
         location = data.get('location', '')
+        display_orientation = (data.get('display_orientation') or 'landscape').strip().lower()
+        if display_orientation not in ('landscape', 'portrait'):
+            display_orientation = 'landscape'
 
         conn = sqlite3.connect('signage.db')
         conn.execute('''
             UPDATE devices
-            SET custom_name = ?, location = ?
+            SET custom_name = ?, location = ?, display_orientation = ?
             WHERE device_id = ?
-        ''', (custom_name, location, device_id))
+        ''', (custom_name, location, display_orientation, device_id))
         conn.commit()
         update_content_timestamp()
         conn.close()
 
-        logger.info(f"Device {device_id} updated: name='{custom_name}', location='{location}'")
+        logger.info(f"Device {device_id} updated: name='{custom_name}', location='{location}', orientation='{display_orientation}'")
         return jsonify({'success': 'Device updated successfully'})
 
     except Exception as e:
@@ -1389,7 +1398,8 @@ def get_playlist(device_id):
                 })
 
         device_row = conn.execute('''
-            SELECT overlay_enabled, overlay_position, overlay_opacity, overlay_size, overlay_hide_on_video
+            SELECT overlay_enabled, overlay_position, overlay_opacity, overlay_size, overlay_hide_on_video,
+                   display_orientation
             FROM devices
             WHERE device_id = ?
         ''', (device_id,)).fetchone()
@@ -1409,6 +1419,7 @@ def get_playlist(device_id):
         conn.close()
         return jsonify({
             'device_id': device_id,
+            'display_orientation': device_row['display_orientation'] if device_row and device_row['display_orientation'] else 'landscape',
             'overlay': overlay,
             'playlist': playlist
         }), 200
@@ -1494,8 +1505,6 @@ def register_device():
 
     if not device_id:
         return jsonify({'error': 'bad_request', 'detail': 'device_id required'}), 400
-    if _is_rate_limited(request.remote_addr or "unknown"):
-        return jsonify({'error': 'rate_limited', 'detail': 'Too many registration attempts'}), 429
 
     try:
         conn = get_db_connection()
@@ -1505,6 +1514,9 @@ def register_device():
         ).fetchone()
 
         if row is None:
+            if _is_rate_limited(request.remote_addr or "unknown"):
+                conn.close()
+                return jsonify({'error': 'rate_limited', 'detail': 'Too many registration attempts'}), 429
             conn.execute('''
                 INSERT INTO devices (device_id, device_name, last_checkin, is_active, ip_address)
                 VALUES (?, ?, ?, 0, ?)

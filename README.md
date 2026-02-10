@@ -262,6 +262,12 @@ These belong to **Phase 4+** only.
 - Admin UI is PIN-gated; device APIs use per-device tokens.
 - No external auth or encryption is enabled (by design).
 
+## Device Orientation (Landscape/Portrait)
+
+- Each device now stores a `display_orientation` value (`landscape` or `portrait`).
+- Admin UI: set per device (inline card settings).
+- Playlist response includes `display_orientation` so the app can adapt overlay sizing.
+
 ## Analytics Notes
 
 - Analytics are recorded **per content assignment** only when **Record stats** is enabled.

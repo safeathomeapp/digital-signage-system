@@ -79,6 +79,7 @@ class MainActivity : AppCompatActivity() {
     private var deviceOverlayHideOnVideo = true
     private var overlayUrl: String? = null
     private val overlayMarginDp = 0
+    private var deviceDisplayOrientation: String = "landscape"
 
     private var lastUpdateToken: Long = 0L
     private var currentAssignmentId: Int = 0
@@ -412,6 +413,7 @@ class MainActivity : AppCompatActivity() {
                     deviceOverlaySize = overlaySize
                     deviceOverlayHideOnVideo = overlayHideOnVideo
                 }
+                deviceDisplayOrientation = obj.optString("display_orientation", "landscape")
                 obj.getJSONArray("playlist")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to parse playlist response", e)
@@ -778,7 +780,9 @@ class MainActivity : AppCompatActivity() {
         overlayLogo.visibility = View.VISIBLE
 
         val screenWidth = resources.displayMetrics.widthPixels
-        val targetWidthPx = (screenWidth * overlaySize.coerceIn(0.05f, 0.3f)).toInt()
+        val screenHeight = resources.displayMetrics.heightPixels
+        val baseDim = minOf(screenWidth, screenHeight)
+        val targetWidthPx = (baseDim * overlaySize.coerceIn(0.05f, 0.3f)).toInt()
         overlayLogo.layoutParams.width = targetWidthPx
         overlayLogo.layoutParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
 
@@ -877,7 +881,9 @@ class MainActivity : AppCompatActivity() {
         val drawable = overlayLogo.drawable ?: return
         if (drawable.intrinsicWidth <= 0 || drawable.intrinsicHeight <= 0) return
         val screenWidth = resources.displayMetrics.widthPixels
-        val targetWidthPx = (screenWidth * overlaySize.coerceIn(0.05f, 0.3f)).toInt()
+        val screenHeight = resources.displayMetrics.heightPixels
+        val baseDim = minOf(screenWidth, screenHeight)
+        val targetWidthPx = (baseDim * overlaySize.coerceIn(0.05f, 0.3f)).toInt()
         val aspect = drawable.intrinsicHeight.toFloat() / drawable.intrinsicWidth.toFloat()
         val targetHeightPx = (targetWidthPx * aspect).toInt().coerceAtLeast(1)
         overlayLogo.layoutParams.width = targetWidthPx
