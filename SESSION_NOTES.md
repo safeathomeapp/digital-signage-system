@@ -41,6 +41,18 @@ Quick handover summary for next session.
 
 ## Next Session Suggested Focus
 
+**Priority 0 (do this before anything else): Review `MainActivity.kt` rotation changes vs `MainActivity_rotation_experiment.kt`.**
+
+Concerns to validate:
+1. Global rotation state (`currentRotationDegrees`) shared across image/video could cause brief mismatches.
+2. Image `ScaleType.MATRIX` overrides Glide scaling; risk of unexpected sizing/jank.
+3. `applyImageMatrix()` re-post loops if layout is 0px; potential flicker.
+4. Video resize mode logic always forces `RESIZE_MODE_FIT`, not using size data.
+5. Video rotation scaling depends on parent + last video size being ready.
+6. Overlay corner mapping under rotation needs validation (90/270).
+7. Overlay rotation + position coupling must be tested with small logo sizes.
+8. Complexity may be over-engineered; consider simpler approach.
+
 1. Spoof analytics data to validate rollups end-to-end.
 2. Prevent drag/drop in Media Library from duplicating when dropping onto the upload box.
 3. When assigning media, auto-enable analytics if that filename already has tracking enabled.
