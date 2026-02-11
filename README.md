@@ -256,6 +256,14 @@ These belong to **Phase 4+** only.
 
 - Docker/hosted server option (requires stronger security/authentication before any public exposure).
 
+## Documentation Cleanup Plan (After MainActivity Rotation Review)
+
+Current docs contain duplicated and occasionally conflicting information. After the MainActivity.kt rotation review, we will clean this up as follows:
+
+- **README.md** will be the single source of truth: project overview, how it works, operational instructions (restart/kill server), DB details/schema, key API routes + locations, and a small terminology glossary (media library, server UI, devices, assignments, media, etc.).
+- **PROJECT_HANDOVER.md** will focus on future functionality and direction.
+- **SESSION_NOTES.md** will be a running log of work completed and how the project evolved.
+
 ---
 
 ## Phase Roadmap
