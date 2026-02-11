@@ -1,6 +1,6 @@
 # Digital Signage System – Expanded Project Handover (Senior Notes)
 
-_Last updated: 2026-02-09_  
+_Last updated: 2026-02-11_  
 _Primary author: Senior maintainer (Codex)_  
 _Status: Stable on LAN and emulator; hardware TV validation pending_
 
@@ -77,6 +77,7 @@ Storage:
 2. Media files: `uploads/`
 3. Device tokens: `device_tokens.json`
 4. Logs: `logs/`
+5. Analytics rollups: `analytics_daily` table (in `signage.db`)
 
 ---
 
@@ -172,6 +173,7 @@ Key server files:
 7.2 Token authentication:
 1. Tokens stored in `device_tokens.json`.
 2. Verified on every playlist request using `X-Device-Id` and `X-Device-Token`.
+3. Blocked devices are denied registration and token issuance.
 
 7.3 Media upload:
 1. `POST /upload`
@@ -234,6 +236,10 @@ Current behavior:
 5. Overlay & PIN modal manages global logo and admin PIN.
 6. Device tiles include a cog for inline per-device settings (name/location/overlay).
 7. Device orientation can be set per device (landscape/portrait).
+8. Device settings open as a popover (no layout push).
+9. Block/unblock devices and show blocked toggle.
+10. Analytics modal (daily rollup view + HTML/PDF report launch).
+11. Logged-out screen with explicit login prompt.
 
 ---
 
@@ -241,8 +247,10 @@ Current behavior:
 
 1. Analytics are recorded per content assignment when **Record stats** is enabled.
 2. Sampling defaults to every **5 plays** to reduce noise.
-3. Reports are **manual** (no scheduled job). Recommended cadence: **monthly**.
-4. Use `GET /api/analytics/media/<media_id>?from=YYYY-MM-DD&to=YYYY-MM-DD` to build summaries and export.
+3. Daily rollups are stored in `analytics_daily`.
+4. Reports are **manual** (no scheduled job). Recommended cadence: **monthly**.
+5. Use `GET /api/analytics/media/<media_id>?from=YYYY-MM-DD&to=YYYY-MM-DD` to build summaries and export.
+6. Analytics modal can launch HTML/PDF reports (client-side rendering).
 
 ---
 
@@ -316,6 +324,23 @@ Monitoring:
 1. Deploy APK to real Android TV / Fire TV.
 2. Update app base URL to LAN IP.
 3. Validate registration, approval, playlist fetch, and media playback.
+
+## 14.1) Next Engineering Tasks (UI + Analytics)
+
+1. Spoof analytics data to validate rollups end-to-end.
+2. Prevent drag/drop in Media Library from duplicating when dropping onto the upload box.
+3. When assigning media, auto-enable analytics if that filename already has tracking enabled.
+4. UI tidy: normalize padding/whitespace across panels.
+5. Make overlay logo icon visually consistent with other device icons.
+6. Simplify/tidy the device edit popover (reduce clutter).
+7. Make both drag/drop boxes the same color so they read as the same action.
+8. Server-side PDF generator for analytics (instead of browser print).
+9. HTML report generator using Google Charts (polish output).
+10. Fix rotation icon size to match other icons.
+11. Stats badge: show graph icon + "stats" (remove "1/5").
+12. Move "Block device" button to bottom of device popover.
+13. Confirm admin PIN is only for admin UI (not reused for device access).
+14. Set page height slightly shorter than full viewport (avoid taskbar overlap).
 
 ---
 
@@ -416,6 +441,7 @@ Device registration and auth:
 1. `POST /api/register` with body `{ "device_id": "uuid" }`
 2. Success response: `200` with `{ device_id, token }` if active
 3. Pending response: `403` with `{ error, code: "pending_approval" }` if inactive
+4. Blocked response: `403` with `{ error, code: "blocked" }` if blocked
 4. `PUT /api/device/<device_id>/activate` returns `200` with `{ success: true }` or `404` if not found
 
 Playlist:
@@ -439,6 +465,8 @@ Devices:
 1. `PUT /api/device/<device_id>` updates custom name and location
 2. `DELETE /api/device/<device_id>` deletes device and assignments
 3. `PUT /api/device/<device_id>/overlay` updates per-device logo settings
+4. `PUT /api/device/<device_id>/block` blocks device (deny registration)
+5. `PUT /api/device/<device_id>/unblock` unblocks device (returns to pending)
 
 System:
 1. `GET /api/system/status` returns server stats and storage use
@@ -450,6 +478,7 @@ System:
 7. `POST /api/system/overlay-logo` uploads global overlay logo
 8. `POST /api/analytics/event` ingests playback analytics (device -> server)
 9. `GET /api/analytics/media/<media_id>` returns summary + per-device stats
+10. `GET /api/analytics/daily` returns rollup rows for a date range
 
 File serving:
 1. `GET /uploads/<filename>` serves uploaded files
@@ -480,6 +509,7 @@ CREATE TABLE IF NOT EXISTS devices (
     location TEXT,
     last_checkin TIMESTAMP,
     is_active BOOLEAN DEFAULT 1,
+    is_blocked BOOLEAN DEFAULT 0,
     ip_address TEXT,
     app_version TEXT DEFAULT "1.0",
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -522,6 +552,7 @@ CREATE TABLE IF NOT EXISTS playback_analytics (
 
 Field notes (practical usage):
 1. `devices.is_active` gates token issuance and playlist access.
+2. `devices.is_blocked` denies registration and hides devices by default.
 2. `device_content.days_of_week` stores JSON list like `['all']` or `['mon','wed']`.
 3. `device_content.start_time` and `end_time` only support same-day windows.
 4. `media.video_duration` is optional and used to bound display duration for videos.

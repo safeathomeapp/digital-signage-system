@@ -70,6 +70,21 @@ def _set_setting(key: str, value: str) -> None:
     except Exception:
         logging.exception("Failed to write system setting")
 
+def _get_setting_int(key: str, default: int) -> int:
+    raw = _get_setting(key)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except Exception:
+        return default
+
+def _get_setting_bool(key: str, default: bool) -> bool:
+    raw = _get_setting(key)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in ('1', 'true', 'yes', 'y', 'on')
+
 def _hash_pin(pin: str) -> str:
     return hashlib.sha256(pin.encode('utf-8')).hexdigest()
 
@@ -123,10 +138,20 @@ def _get_or_create_device_token(device_id: str, force_rotate: bool = False) -> s
         _save_token_store(store)
         return token
 
+def _delete_device_token(device_id: str) -> None:
+    with _TOKEN_LOCK:
+        store = _load_token_store()
+        if device_id in store:
+            del store[device_id]
+            _save_token_store(store)
+
 def _is_device_active(device_id: str) -> bool:
     try:
         conn = get_db_connection()
-        row = conn.execute("SELECT device_id FROM devices WHERE device_id = ? AND is_active = 1", (device_id,)).fetchone()
+        row = conn.execute(
+            "SELECT device_id FROM devices WHERE device_id = ? AND is_active = 1 AND (is_blocked IS NULL OR is_blocked = 0)",
+            (device_id,)
+        ).fetchone()
         conn.close()
         return row is not None
     except Exception:
@@ -269,6 +294,7 @@ def init_db():
             location TEXT,
             last_checkin TIMESTAMP,
             is_active BOOLEAN DEFAULT 1,
+            is_blocked BOOLEAN DEFAULT 0,
             ip_address TEXT,
             app_version TEXT DEFAULT "1.0",
             display_orientation TEXT DEFAULT "landscape",
@@ -306,6 +332,10 @@ def init_db():
         conn.execute('ALTER TABLE devices ADD COLUMN overlay_hide_on_video BOOLEAN DEFAULT 1')
     except sqlite3.OperationalError:
         pass
+    try:
+        conn.execute('ALTER TABLE devices ADD COLUMN is_blocked BOOLEAN DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass
 
     # System settings (global configuration)
     conn.execute('''
@@ -334,6 +364,7 @@ def init_db():
             transition_duration REAL DEFAULT 1.0,
     overlay_enabled BOOLEAN,
     overlay_position TEXT,
+            rotation_degrees INTEGER DEFAULT 0,
             analytics_enabled BOOLEAN DEFAULT 0,
             analytics_sample_rate INTEGER DEFAULT 5,
             analytics_counter INTEGER DEFAULT 0,
@@ -354,6 +385,11 @@ def init_db():
 
     try:
         conn.execute('ALTER TABLE device_content ADD COLUMN overlay_position TEXT')
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute('ALTER TABLE device_content ADD COLUMN rotation_degrees INTEGER DEFAULT 0')
     except sqlite3.OperationalError:
         pass
 
@@ -391,6 +427,26 @@ def init_db():
         conn.execute('ALTER TABLE playback_analytics ADD COLUMN assignment_id INTEGER')
     except sqlite3.OperationalError:
         pass  # Column already exists
+
+    # Daily rollups for analytics (compact storage)
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS analytics_daily (
+            day DATE NOT NULL,
+            device_id TEXT NOT NULL,
+            media_id INTEGER,
+            assignment_id INTEGER,
+            filename TEXT NOT NULL,
+            file_type TEXT NOT NULL,
+            plays INTEGER DEFAULT 0,
+            total_seconds INTEGER DEFAULT 0,
+            avg_seconds REAL DEFAULT 0,
+            min_seconds INTEGER DEFAULT 0,
+            max_seconds INTEGER DEFAULT 0,
+            completed_count INTEGER DEFAULT 0,
+            incomplete_count INTEGER DEFAULT 0,
+            PRIMARY KEY (day, device_id, media_id, assignment_id)
+        )
+    ''')
     
     conn.commit()
     conn.close()
@@ -409,6 +465,104 @@ def _media_exists(filename: str) -> bool:
         return os.path.isfile(_media_path(filename))
     except Exception:
         return False
+
+def _rollup_analytics_range(conn, start_date: str, end_date: str):
+    # Aggregate by day/device/media/assignment
+    cursor = conn.execute('''
+        SELECT substr(started_at, 1, 10) AS day,
+               device_id,
+               media_id,
+               assignment_id,
+               filename,
+               file_type,
+               COUNT(*) AS plays,
+               SUM(COALESCE(actual_duration, 0)) AS total_seconds,
+               AVG(COALESCE(actual_duration, 0)) AS avg_seconds,
+               MIN(COALESCE(actual_duration, 0)) AS min_seconds,
+               MAX(COALESCE(actual_duration, 0)) AS max_seconds,
+               SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) AS completed_count,
+               SUM(CASE WHEN completed = 0 THEN 1 ELSE 0 END) AS incomplete_count
+        FROM playback_analytics
+        WHERE substr(started_at, 1, 10) BETWEEN ? AND ?
+        GROUP BY day, device_id, media_id, assignment_id, filename, file_type
+    ''', (start_date, end_date))
+
+    rows = cursor.fetchall()
+    for row in rows:
+        conn.execute('''
+            INSERT INTO analytics_daily
+            (day, device_id, media_id, assignment_id, filename, file_type,
+             plays, total_seconds, avg_seconds, min_seconds, max_seconds,
+             completed_count, incomplete_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(day, device_id, media_id, assignment_id) DO UPDATE SET
+                plays = excluded.plays,
+                total_seconds = excluded.total_seconds,
+                avg_seconds = excluded.avg_seconds,
+                min_seconds = excluded.min_seconds,
+                max_seconds = excluded.max_seconds,
+                completed_count = excluded.completed_count,
+                incomplete_count = excluded.incomplete_count,
+                filename = excluded.filename,
+            file_type = excluded.file_type
+        ''', row)
+    return len(rows)
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ('1', 'true', 'yes', 'y', 'on')
+
+def _parse_rollup_time(value: str):
+    try:
+        return datetime.strptime(value, '%H:%M').time()
+    except Exception:
+        return datetime.strptime('03:15', '%H:%M').time()
+
+def _get_rollup_config():
+    enabled = _get_setting_bool('analytics_rollup_enabled', _env_bool('ANALYTICS_ROLLUP_ENABLED', True))
+    time_str = _get_setting('analytics_rollup_time') or os.getenv('ANALYTICS_ROLLUP_TIME', '03:15')
+    lookback_days = _get_setting_int('analytics_rollup_lookback_days', int(os.getenv('ANALYTICS_ROLLUP_LOOKBACK_DAYS', '2')))
+    retention_days = _get_setting_int('analytics_retention_days', int(os.getenv('ANALYTICS_RETENTION_DAYS', '30')))
+    lookback_days = max(1, lookback_days)
+    retention_days = max(1, retention_days)
+    rollup_time = _parse_rollup_time(time_str)
+    return enabled, rollup_time, time_str, lookback_days, retention_days
+
+def _run_analytics_rollup_and_cleanup(start_date: str, end_date: str, retention_days: int):
+    conn = sqlite3.connect('signage.db')
+    rolled_up = _rollup_analytics_range(conn, start_date, end_date)
+    cutoff = (datetime.now().date() - timedelta(days=retention_days)).isoformat()
+    cursor = conn.execute('DELETE FROM playback_analytics WHERE substr(started_at, 1, 10) < ?', (cutoff,))
+    deleted = cursor.rowcount
+    conn.commit()
+    conn.close()
+    logger.info(f"Analytics rollup: {rolled_up} rows into analytics_daily; cleanup deleted {deleted} rows before {cutoff}")
+
+def _analytics_rollup_daemon():
+    while True:
+        enabled, rollup_time, time_str, lookback_days, retention_days = _get_rollup_config()
+        now = datetime.now()
+        target = datetime.combine(now.date(), rollup_time)
+        if now >= target:
+            target += timedelta(days=1)
+
+        sleep_seconds = max(5, int((target - now).total_seconds()))
+        logger.info(f"Next analytics rollup scheduled for {target.isoformat()} (enabled={enabled}, time={time_str}, lookback {lookback_days}d, retention {retention_days}d)")
+        time.sleep(sleep_seconds)
+
+        try:
+            enabled, _, _, lookback_days, retention_days = _get_rollup_config()
+            if not enabled:
+                logger.info("Analytics rollup skipped (disabled in settings)")
+                continue
+            today = datetime.now().date()
+            end_date = (today - timedelta(days=1)).isoformat()
+            start_date = (today - timedelta(days=lookback_days)).isoformat()
+            _run_analytics_rollup_and_cleanup(start_date, end_date, retention_days)
+        except Exception as e:
+            logger.error(f"Analytics rollup daemon error: {e}")
 
 # Auto refresh
 def update_content_timestamp():
@@ -614,8 +768,8 @@ def assign_content_with_schedule():
         cursor = conn.execute('''
             INSERT INTO device_content 
             (device_id, media_id, display_duration, video_duration, days_of_week, 
-             start_date, end_date, start_time, end_time, play_order, is_active)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+             start_date, end_date, start_time, end_time, play_order, is_active, rotation_degrees)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
         ''', (
             device_id, 
             media_id, 
@@ -626,7 +780,8 @@ def assign_content_with_schedule():
             data.get('end_date'),
             data.get('start_time'),
             data.get('end_time'),
-            next_order
+            next_order,
+            int(data.get('rotation_degrees') or 0)
         ))
         assignment_id = cursor.lastrowid
         
@@ -752,7 +907,7 @@ def get_devices():
         conn = get_db_connection()
         cursor = conn.execute('''
             SELECT d.device_id, d.device_name, d.custom_name, d.location, d.last_checkin,
-                   d.is_active, d.ip_address, d.app_version, d.created_at, d.display_orientation,
+                   d.is_active, d.is_blocked, d.ip_address, d.app_version, d.created_at, d.display_orientation,
                    d.overlay_enabled, d.overlay_position, d.overlay_opacity, d.overlay_size,
                    d.overlay_hide_on_video,
                    COUNT(dc.id) as content_count
@@ -761,7 +916,7 @@ def get_devices():
                 AND dc.is_active = 1
                 AND dc.media_id IN (SELECT id FROM media)
             GROUP BY d.device_id, d.device_name, d.custom_name, d.location, d.last_checkin,
-                     d.is_active, d.ip_address, d.app_version, d.created_at, d.display_orientation
+                     d.is_active, d.is_blocked, d.ip_address, d.app_version, d.created_at, d.display_orientation
             ORDER BY d.last_checkin DESC
         ''')
 
@@ -776,6 +931,7 @@ def get_devices():
                     'location': row['location'],
                     'last_checkin': row['last_checkin'],
                     'is_active': bool(row['is_active']),
+                    'is_blocked': bool(row['is_blocked']) if row['is_blocked'] is not None else False,
                     'ip_address': row['ip_address'],
                     'app_version': row['app_version'],
                     'created_at': row['created_at'],
@@ -898,7 +1054,7 @@ def get_device_content(device_id):
                    dc.start_time, dc.end_time,
                    dc.is_active, dc.transition_type, dc.transition_duration,
                    dc.analytics_enabled, dc.analytics_sample_rate,
-                   dc.overlay_enabled, dc.overlay_position,
+                   dc.overlay_enabled, dc.overlay_position, dc.rotation_degrees,
                    m.filename, m.original_name, m.file_type, m.video_duration
             FROM device_content dc
             JOIN media m ON dc.media_id = m.id
@@ -925,10 +1081,11 @@ def get_device_content(device_id):
                 'analytics_sample_rate': row[13] if row[13] is not None else 5,
                 'overlay_enabled': None if row[14] is None else bool(row[14]),
                 'overlay_position': row[15],
-                'filename': row[16],
-                'original_name': row[17],
-                'file_type': row[18],
-                'video_duration': row[19]
+                'rotation_degrees': row[16] if row[16] is not None else 0,
+                'filename': row[17],
+                'original_name': row[18],
+                'file_type': row[19],
+                'video_duration': row[20]
             })
 
         conn.close()
@@ -954,15 +1111,29 @@ def update_device_content_schedule(assignment_id):
 
         overlay_enabled = data.get('overlay_enabled')
         overlay_position = data.get('overlay_position')
+        rotation_degrees = int(data.get('rotation_degrees') or 0)
         analytics_enabled = bool(data.get('analytics_enabled', False))
         analytics_sample_rate = int(data.get('analytics_sample_rate') or 5)
+        analytics_apply_to_filename = bool(data.get('analytics_apply_to_filename', False))
+        analytics_filename = data.get('analytics_filename')
+
+        if analytics_apply_to_filename and analytics_filename:
+            conn.execute('''
+                UPDATE device_content
+                SET analytics_enabled = ?, analytics_sample_rate = ?
+                WHERE media_id IN (SELECT id FROM media WHERE filename = ?)
+            ''', (
+                1 if analytics_enabled else 0,
+                analytics_sample_rate,
+                analytics_filename
+            ))
 
         conn.execute('''
             UPDATE device_content
             SET days_of_week = ?, display_duration = ?, start_time = ?, end_time = ?,
                 start_date = ?, end_date = ?, transition_type = ?, transition_duration = ?,
                 analytics_enabled = ?, analytics_sample_rate = ?,
-                overlay_enabled = ?, overlay_position = ?
+                overlay_enabled = ?, overlay_position = ?, rotation_degrees = ?
             WHERE id = ?
         ''', (
             days_json,
@@ -977,10 +1148,12 @@ def update_device_content_schedule(assignment_id):
             analytics_sample_rate,
             None if overlay_enabled is None else (1 if overlay_enabled else 0),
             overlay_position,
+            rotation_degrees,
             assignment_id
         ))
 
         conn.commit()
+        update_content_timestamp()
         conn.close()
 
         logger.info(f"Device content {assignment_id} schedule updated with transitions")
@@ -1083,6 +1256,7 @@ def delete_device(device_id):
         
         conn.commit()
         conn.close()
+        _delete_device_token(device_id)
         
         logger.info(f"Device {device_id} deleted")
         return jsonify({'success': 'Device deleted successfully'})
@@ -1091,17 +1265,76 @@ def delete_device(device_id):
         logger.error(f"Error deleting device: {e}")
         return jsonify({'error': 'Failed to delete device'}), 500
 
-# System settings
-@app.route('/api/system/settings')
+@app.route('/api/device/<device_id>/block', methods=['PUT'])
 @require_admin
-def get_system_settings():
+def block_device(device_id):
     try:
+        conn = get_db_connection()
+        row = conn.execute('SELECT device_id FROM devices WHERE device_id = ?', (device_id,)).fetchone()
+        if not row:
+            conn.close()
+            return jsonify({'error': 'Device not found'}), 404
+        conn.execute('UPDATE devices SET is_blocked = 1, is_active = 0 WHERE device_id = ?', (device_id,))
+        conn.commit()
+        conn.close()
+        _delete_device_token(device_id)
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Device block error: {e}")
+        return jsonify({'error': 'Failed to block device'}), 500
+
+@app.route('/api/device/<device_id>/unblock', methods=['PUT'])
+@require_admin
+def unblock_device(device_id):
+    try:
+        conn = get_db_connection()
+        row = conn.execute('SELECT device_id FROM devices WHERE device_id = ?', (device_id,)).fetchone()
+        if not row:
+            conn.close()
+            return jsonify({'error': 'Device not found'}), 404
+        conn.execute('UPDATE devices SET is_blocked = 0, is_active = 0 WHERE device_id = ?', (device_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Device unblock error: {e}")
+        return jsonify({'error': 'Failed to unblock device'}), 500
+
+# System settings
+@app.route('/api/system/settings', methods=['GET', 'PUT'])
+@require_admin
+def system_settings():
+    try:
+        if request.method == 'PUT':
+            data = request.get_json() or {}
+            if 'analytics_rollup_enabled' in data:
+                _set_setting('analytics_rollup_enabled', '1' if bool(data.get('analytics_rollup_enabled')) else '0')
+            if 'analytics_rollup_time' in data:
+                time_str = str(data.get('analytics_rollup_time', '')).strip()
+                try:
+                    datetime.strptime(time_str, '%H:%M')
+                    _set_setting('analytics_rollup_time', time_str)
+                except Exception:
+                    return jsonify({'error': 'Invalid rollup time (HH:MM)'}), 400
+            if 'analytics_rollup_lookback_days' in data:
+                lookback = max(1, int(data.get('analytics_rollup_lookback_days')))
+                _set_setting('analytics_rollup_lookback_days', str(lookback))
+            if 'analytics_retention_days' in data:
+                retention = max(1, int(data.get('analytics_retention_days')))
+                _set_setting('analytics_retention_days', str(retention))
+            return jsonify({'success': True})
+
         logo_filename = _get_setting('overlay_logo_filename')
         overlay_logo_url = None
         if logo_filename:
             overlay_logo_url = f'http://{SERVER_IP}:5000/uploads/{logo_filename}'
+        enabled, _, time_str, lookback_days, retention_days = _get_rollup_config()
         return jsonify({
-            'overlay_logo_url': overlay_logo_url
+            'overlay_logo_url': overlay_logo_url,
+            'analytics_rollup_enabled': enabled,
+            'analytics_rollup_time': time_str,
+            'analytics_rollup_lookback_days': lookback_days,
+            'analytics_retention_days': retention_days
         })
     except Exception as e:
         logger.error(f"System settings error: {e}")
@@ -1341,7 +1574,7 @@ def get_playlist(device_id):
                    dc.start_time, dc.end_time,
                    dc.play_order, dc.transition_type, dc.transition_duration,
                    dc.analytics_enabled, dc.analytics_sample_rate,
-                   dc.overlay_enabled, dc.overlay_position
+                   dc.overlay_enabled, dc.overlay_position, dc.rotation_degrees
             FROM device_content dc
             JOIN media m ON dc.media_id = m.id
             WHERE dc.device_id = ?
@@ -1351,13 +1584,14 @@ def get_playlist(device_id):
             ORDER BY dc.play_order, dc.created_at
         ''', (device_id, today, today))
 
+        base_url = request.host_url.rstrip('/')
         playlist = []
         for row in cursor.fetchall():
             (assignment_id, media_id, filename, file_type, duration,
              days_json, start_date, end_date, start_time_str, end_time_str,
              play_order, transition_type, transition_duration,
              analytics_enabled, analytics_sample_rate,
-             overlay_enabled, overlay_position) = row
+             overlay_enabled, overlay_position, rotation_degrees) = row
 
             try:
                 days_of_week = json.loads(days_json) if days_json else ['all']
@@ -1394,7 +1628,8 @@ def get_playlist(device_id):
                     'analytics_sample_rate': analytics_sample_rate if analytics_sample_rate is not None else 5,
                     'overlay_enabled': None if overlay_enabled is None else bool(overlay_enabled),
                     'overlay_position': overlay_position,
-                    'url': f'http://{SERVER_IP}:5000/uploads/{filename}'
+                    'rotation_degrees': rotation_degrees if rotation_degrees is not None else 0,
+                    'url': f'{base_url}/uploads/{filename}'
                 })
 
         device_row = conn.execute('''
@@ -1405,7 +1640,7 @@ def get_playlist(device_id):
         ''', (device_id,)).fetchone()
 
         logo_filename = _get_setting('overlay_logo_filename')
-        overlay_url = f'http://{SERVER_IP}:5000/uploads/{logo_filename}' if logo_filename else ''
+        overlay_url = f'{base_url}/uploads/{logo_filename}' if logo_filename else ''
 
         overlay = {
             'enabled': bool(device_row['overlay_enabled']) if device_row and device_row['overlay_enabled'] is not None else True,
@@ -1494,7 +1729,87 @@ def analytics_media_summary(media_id):
     except Exception as e:
         logger.error(f"Analytics summary error: {e}")
         return jsonify({'error': 'Failed to fetch analytics'}), 500
- 
+
+# Manual analytics rollup (daily)
+@app.route('/api/analytics/rollup', methods=['POST'])
+@require_admin
+def analytics_rollup():
+    try:
+        data = request.get_json() or {}
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+
+        if not start_date or not end_date:
+            today = datetime.now().date().isoformat()
+            start_date = start_date or today
+            end_date = end_date or today
+
+        conn = sqlite3.connect('signage.db')
+        count = _rollup_analytics_range(conn, start_date, end_date)
+        conn.commit()
+        conn.close()
+
+        return jsonify({'success': True, 'rolled_up': count, 'start_date': start_date, 'end_date': end_date})
+    except Exception as e:
+        logger.error(f"Analytics rollup error: {e}")
+        return jsonify({'error': 'Failed to rollup analytics'}), 500
+
+# Manual analytics cleanup (retention)
+@app.route('/api/analytics/cleanup', methods=['POST'])
+@require_admin
+def analytics_cleanup():
+    try:
+        retention_days = 30
+        cutoff = (datetime.now().date() - timedelta(days=retention_days)).isoformat()
+        conn = sqlite3.connect('signage.db')
+        cursor = conn.execute('DELETE FROM playback_analytics WHERE substr(started_at, 1, 10) < ?', (cutoff,))
+        deleted = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'deleted': deleted, 'cutoff': cutoff, 'retention_days': retention_days})
+    except Exception as e:
+        logger.error(f"Analytics cleanup error: {e}")
+        return jsonify({'error': 'Failed to cleanup analytics'}), 500
+
+@app.route('/api/analytics/daily')
+@require_admin
+def analytics_daily():
+    try:
+        date_from = request.args.get('from')
+        date_to = request.args.get('to')
+        file_type = request.args.get('file_type')
+
+        if not date_to:
+            date_to = (datetime.now().date() - timedelta(days=1)).isoformat()
+        if not date_from:
+            date_from = (datetime.now().date() - timedelta(days=30)).isoformat()
+
+        conn = get_db_connection()
+        params = [date_from, date_to]
+        where = 'day BETWEEN ? AND ?'
+        if file_type:
+            where += ' AND file_type = ?'
+            params.append(file_type)
+
+        rows = conn.execute(f'''
+            SELECT day, device_id, media_id, assignment_id, filename, file_type,
+                   plays, total_seconds, avg_seconds, min_seconds, max_seconds,
+                   completed_count, incomplete_count
+            FROM analytics_daily
+            WHERE {where}
+            ORDER BY day DESC, filename ASC, device_id ASC
+        ''', params).fetchall()
+        conn.close()
+
+        return jsonify({
+            'from': date_from,
+            'to': date_to,
+            'rows': [dict(row) for row in rows]
+        })
+    except Exception as e:
+        logger.error(f"Analytics daily error: {e}")
+        return jsonify({'error': 'Failed to fetch analytics daily'}), 500
+
 # Add these routes to your production_app.py
 
 @app.route('/api/register', methods=['POST'])
@@ -1509,7 +1824,7 @@ def register_device():
     try:
         conn = get_db_connection()
         row = conn.execute(
-            'SELECT device_id, is_active FROM devices WHERE device_id = ?',
+            'SELECT device_id, is_active, is_blocked FROM devices WHERE device_id = ?',
             (device_id,)
         ).fetchone()
 
@@ -1527,6 +1842,19 @@ def register_device():
                 'error': 'forbidden',
                 'code': 'pending_approval',
                 'detail': 'Device created but inactive. Approve/activate in admin UI.'
+            }), 403
+
+        if int(row['is_blocked'] or 0) == 1:
+            conn.execute(
+                'UPDATE devices SET last_checkin = ?, ip_address = ? WHERE device_id = ?',
+                (_now_iso(), request.remote_addr, device_id)
+            )
+            conn.commit()
+            conn.close()
+            return jsonify({
+                'error': 'forbidden',
+                'code': 'blocked',
+                'detail': 'Device is blocked by admin.'
             }), 403
 
         if int(row['is_active']) != 1:
@@ -1560,6 +1888,7 @@ if __name__ == '__main__':
     init_db()
     upgrade_database()
     _ensure_default_pin()
+    threading.Thread(target=_analytics_rollup_daemon, name='analytics-rollup', daemon=True).start()
     print(f"🚀 Digital Signage Server starting on: {SERVER_IP}:5000")
     print(f"📱 Android TVs connect to: http://{SERVER_IP}:5000")
     print(f"🌐 Upload from any PC: http://{SERVER_IP}:5000")

@@ -64,6 +64,40 @@
 			display: none;
 		}
 
+		.logged-out-screen {
+			position: fixed;
+			inset: 0;
+			background: rgba(15, 23, 42, 0.55);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			z-index: 3000;
+		}
+
+		.logged-out-screen.hidden {
+			display: none;
+		}
+
+		.logged-out-card {
+			background: #ffffff;
+			border-radius: 0.85rem;
+			padding: 1.4rem 1.5rem;
+			width: min(420px, 90vw);
+			box-shadow: 0 20px 40px rgba(15, 23, 42, 0.35);
+			border: 1px solid #e5e7eb;
+			color: #0f172a;
+		}
+
+		.logged-out-card h5 {
+			margin: 0 0 8px;
+			font-weight: 700;
+		}
+
+		.logged-out-card p {
+			margin: 0 0 16px;
+			color: #475569;
+		}
+
 		.auth-card {
 			background: #ffffff;
 			border-radius: 0.75rem;
@@ -131,8 +165,9 @@
 
 		.device-checkboxes > div {
 			align-self: flex-start;
-			flex: 1 1 240px;
-			min-width: 220px;
+			flex: 1 1 220px;
+			min-width: 200px;
+			max-width: calc(25% - 12px);
 		}
 
 		.device-checkbox-item {
@@ -207,13 +242,17 @@
 		
 		.device-inline-panel {
 			display: none;
-			margin-top: 0.5rem;
+			position: absolute;
+			top: calc(100% + 6px);
+			right: 0;
+			z-index: 25;
+			margin-top: 0;
 			padding: 0.75rem;
 			border: 1px solid #e5e7eb;
 			border-radius: 0.75rem;
 			background: #fff;
-			box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.05);
-			width: 100%;
+			box-shadow: 0 0.5rem 1.25rem rgba(15, 23, 42, 0.15);
+			width: min(520px, 88vw);
 		}
 
 		.device-inline-panel.active {
@@ -235,6 +274,17 @@
 			box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.15);
 		}
 
+		.device-checkbox-item.blocked-device {
+			border-color: #94a3b8;
+			background-color: #f1f5f9;
+			color: #475569;
+		}
+
+		.device-checkbox-item.blocked-device:hover {
+			border-color: #94a3b8;
+			background-color: #f1f5f9;
+		}
+
 		.device-checkbox-item .device-cog {
 			margin-left: 0.5rem;
 			flex-shrink: 0;
@@ -245,6 +295,10 @@
 			color: #6c757d;
 			min-width: 22px;
 			text-align: right;
+		}
+
+		.device-inline-wrapper {
+			position: relative;
 		}
 
 		@media (max-width: 768px) {
@@ -413,6 +467,133 @@
 			padding: 0.125rem 0.5rem;
 			border-radius: 0.25rem;
 			border: 1px solid #99f6e4;
+		}
+
+		.detail-display.overlay-badge {
+			background-color: #0b3d91;
+			border: 1px solid #0b3d91;
+			padding: 0.125rem 0.4rem;
+			border-radius: 0.25rem;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		.overlay-grid {
+			width: 18px;
+			height: 18px;
+			display: grid;
+			grid-template-columns: repeat(2, 1fr);
+			grid-template-rows: repeat(2, 1fr);
+			background-color: #0b3d91;
+			border: 1px solid #ffffff;
+			border-radius: 2px;
+		}
+
+		.overlay-grid .cell {
+			border: 1px solid #ffffff;
+			background: transparent;
+		}
+
+		.overlay-grid .cell.active {
+			background: #ffffff;
+		}
+
+		.detail-display.rotation-badge {
+			background-color: #e7f1ff;
+			border: 1px solid #b6d7ff;
+			color: #0d6efd;
+			padding: 0.125rem 0.5rem;
+			border-radius: 0.25rem;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			min-width: 28px;
+		}
+
+		.help-chip {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 16px;
+			height: 16px;
+			margin-left: 6px;
+			border-radius: 50%;
+			border: 1px solid rgba(15, 23, 42, 0.35);
+			color: #0f172a;
+			font-size: 11px;
+			line-height: 1;
+			cursor: help;
+			background: #fff;
+		}
+
+		.btn-icon-center {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 6px;
+		}
+
+		.analytics-table td,
+		.analytics-table th {
+			vertical-align: middle;
+		}
+
+		.analytics-empty {
+			border: 1px dashed #cbd5f5;
+			background: #f8fafc;
+			padding: 16px;
+			border-radius: 10px;
+			color: #64748b;
+			text-align: center;
+		}
+
+		.settings-card {
+			border: 1px solid #e5e7eb;
+			border-radius: 10px;
+			padding: 12px 14px;
+			background: #f8fafc;
+		}
+
+		.settings-card-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 12px;
+			margin-bottom: 10px;
+		}
+
+		.settings-card-header h6 {
+			margin: 0;
+			display: flex;
+			align-items: center;
+			gap: 6px;
+		}
+
+		.overlay-preview {
+			border: 1px dashed #cbd5f5;
+			background: #fff;
+			border-radius: 10px;
+			min-height: 110px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 10px;
+		}
+
+		.overlay-preview img {
+			max-width: 160px;
+			max-height: 110px;
+			display: none;
+			border: 1px solid #e5e7eb;
+			padding: 6px;
+			border-radius: 6px;
+			background: #fff;
+		}
+
+		.overlay-preview-empty {
+			color: #64748b;
+			font-size: 0.85rem;
 		}
 		
 		/* MULTI-DEVICE DISABLED STATES */
@@ -622,12 +803,14 @@
 		/* .device-content-item.multi-device-disabled[draggable="true"] - deleted */
 
         .device-content-thumbnail {
-            width: 50px;
-            height: 50px;
-            object-fit: cover;
+            width: 56px;
+            height: 56px;
+            object-fit: contain;
             border-radius: 0.375rem;
-            margin-right: 1rem;
+            margin-right: 0.85rem;
             flex-shrink: 0;
+            border: 2px solid #dee2e6;
+            background-color: #e5e7eb;
         }
 
         .device-thumbnail-placeholder {
@@ -867,11 +1050,14 @@
                 <i class="fas fa-tv me-2"></i>Device Management
             </span>
             <div class="navbar-nav ms-auto d-flex flex-row gap-2 align-items-center">
-                <button class="btn btn-outline-light btn-sm" id="adminLogoutBtn" style="display: none;">
-                    <i class="fas fa-sign-out-alt me-1"></i>Logout
+                <button class="btn btn-outline-light btn-sm btn-icon-center" data-bs-toggle="modal" data-bs-target="#analyticsModal">
+                    <i class="fas fa-chart-line me-1"></i>Analytics
                 </button>
-                <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#systemSettingsModal">
+                <button class="btn btn-outline-light btn-sm btn-icon-center" data-bs-toggle="modal" data-bs-target="#systemSettingsModal">
                     <i class="fas fa-sliders-h me-1"></i>Settings
+                </button>
+                <button class="btn btn-outline-light btn-sm btn-icon-center" id="adminLogoutBtn" style="display: none;">
+                    <i class="fas fa-sign-out-alt me-1"></i>Logout
                 </button>
             </div>
         </div>
@@ -882,12 +1068,21 @@
 			<h6>Admin PIN Required</h6>
 			<p>Enter the admin PIN to access the dashboard.</p>
 			<input type="password" class="form-control form-control-sm" id="adminAuthPin" placeholder="PIN">
+			<div id="adminAuthInfo" class="text-muted small mt-2" style="display: none;"></div>
 			<div id="adminAuthError" class="text-danger small mt-2" style="display: none;"></div>
 			<div class="auth-actions">
 				<button class="btn btn-sm btn-primary" id="adminAuthSubmit">Unlock</button>
 			</div>
 		</div>
 	</div>
+
+    <div id="loggedOutScreen" class="logged-out-screen hidden">
+        <div class="logged-out-card">
+            <h5>Logged Out</h5>
+            <p>You have been logged out of the admin dashboard. Enter your PIN to continue.</p>
+            <button class="btn btn-sm btn-primary" id="loggedOutLoginBtn">Login with PIN</button>
+        </div>
+    </div>
     
     <div class="container-fluid main-content mt-4">
         <div class="row">
@@ -930,19 +1125,23 @@
             <div class="col-md-7">
                 <div class="device-panel p-4">
                     <!-- Device Selection Checkboxes -->
-                    <div class="bg-white p-3 rounded mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div class="d-flex align-items-center gap-2">
-                                <h5 class="mb-0">
-                                    <i class="fas fa-desktop me-2"></i>Device Content
-                                </h5>
-                            </div>
-                        <div class="d-flex gap-2 align-items-center">
-                            <div id="deviceDeleteBin" class="delete-bin">
-                                <i class="fas fa-trash-alt"></i>
-                                <span>Bin</span>
-                            </div>
-                        </div>
+                      <div class="bg-white p-3 rounded mb-3">
+                          <div class="d-flex justify-content-between align-items-center mb-2">
+                              <div class="d-flex align-items-center gap-2">
+                                  <h5 class="mb-0">
+                                      <i class="fas fa-desktop me-2"></i>Device Content
+                                  </h5>
+                              </div>
+                          <div class="d-flex gap-2 align-items-center">
+                              <div class="form-check form-switch small mb-0">
+                                  <input class="form-check-input" type="checkbox" id="showBlockedToggle" onchange="toggleShowBlocked()">
+                                  <label class="form-check-label" for="showBlockedToggle">Show blocked</label>
+                              </div>
+                              <div id="deviceDeleteBin" class="delete-bin">
+                                  <i class="fas fa-trash-alt"></i>
+                                  <span>Bin</span>
+                              </div>
+                          </div>
                     </div>
 
                     <!-- Device Checkboxes -->
@@ -1042,23 +1241,130 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="row g-4">
-                        <div class="col-md-6">
+                    <div class="settings-card">
+                        <div class="settings-card-header">
                             <h6>Global Overlay Logo</h6>
-                            <div class="mb-2">
-                                <img id="overlayLogoPreview" src="" alt="Overlay logo" style="max-width: 160px; max-height: 160px; display:none; border:1px solid #ddd; padding:6px; border-radius:6px;">
-                            </div>
-                            <input type="file" class="form-control form-control-sm mb-2" id="overlayLogoFile" accept="image/*">
-                            <button class="btn btn-sm btn-primary" onclick="uploadOverlayLogo()">Upload Logo</button>
+                            <span class="text-muted small">Displayed on all devices unless overridden per device.</span>
                         </div>
-                        <div class="col-md-6">
-                            <h6>Admin PIN</h6>
-                            <input type="password" class="form-control form-control-sm mb-2" id="adminPinInput" placeholder="Enter new PIN">
-                            <button class="btn btn-sm btn-secondary" onclick="saveAdminPin()">Save PIN</button>
+                        <div class="row g-3 align-items-center">
+                            <div class="col-md-4">
+                                <div class="overlay-preview">
+                                    <img id="overlayLogoPreview" src="" alt="Overlay logo">
+                                    <div class="overlay-preview-empty">No logo uploaded</div>
+                                </div>
+                            </div>
+                            <div class="col-md-8">
+                                <input type="file" class="form-control form-control-sm mb-2" id="overlayLogoFile" accept="image/*">
+                                <button class="btn btn-sm btn-primary" onclick="uploadOverlayLogo()">Upload Logo</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-card mt-3">
+                        <div class="settings-card-header">
+                            <h6>Admin PIN
+                                <span class="help-chip" data-bs-toggle="tooltip" data-bs-title="PIN required to access the admin dashboard and settings. Minimum 4 digits.">?</span>
+                            </h6>
+                            <span class="text-muted small">Use a short numeric PIN for quick access.</span>
+                        </div>
+                        <div class="input-group input-group-sm">
+                            <input type="password" class="form-control" id="adminPinInput" placeholder="Enter new PIN">
+                            <button class="btn btn-outline-secondary" type="button" onclick="saveAdminPin()">Save PIN</button>
                         </div>
                     </div>
 
                     <hr class="my-4">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <h6>Analytics Rollup & Retention</h6>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="analyticsRollupEnabled">
+                                <label class="form-check-label small" for="analyticsRollupEnabled">Enable daily rollup</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Rollup Time (HH:MM)
+                                <span class="help-chip" data-bs-toggle="tooltip" data-bs-title="Time of day to run the daily rollup. Uses server local time.">?</span>
+                            </label>
+                            <input type="time" class="form-control form-control-sm" id="analyticsRollupTime" step="60">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Lookback Days
+                                <span class="help-chip" data-bs-toggle="tooltip" data-bs-title="How many days (including yesterday) to aggregate into analytics_daily each run. Helps catch late events.">?</span>
+                            </label>
+                            <input type="number" class="form-control form-control-sm" id="analyticsRollupLookback" min="1" max="30">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Retention Days
+                                <span class="help-chip" data-bs-toggle="tooltip" data-bs-title="Raw playback_analytics older than this will be deleted after each rollup.">?</span>
+                            </label>
+                            <input type="number" class="form-control form-control-sm" id="analyticsRetentionDays" min="1" max="365">
+                        </div>
+                        <div class="col-12">
+                            <button class="btn btn-sm btn-primary" onclick="saveAnalyticsRollupSettings()">Save Analytics Settings</button>
+                            <button class="btn btn-sm btn-outline-secondary ms-2" onclick="runAnalyticsRollupNow()">Run Rollup Now</button>
+                            <button class="btn btn-sm btn-outline-danger ms-2" onclick="runAnalyticsCleanupNow()">Run Cleanup Now</button>
+                            <small class="text-muted ms-2">Changes apply on the next scheduled run.</small>
+                        </div>
+                    </div>
+
+                      <hr class="my-4">
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analytics Modal -->
+    <div class="modal fade" id="analyticsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-chart-line me-2"></i>Analytics (Daily Rollup)
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3 align-items-end mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label small">From</label>
+                            <input type="date" class="form-control form-control-sm" id="analyticsFromDate">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">To</label>
+                            <input type="date" class="form-control form-control-sm" id="analyticsToDate">
+                        </div>
+                        <div class="col-md-6 d-flex flex-wrap gap-2">
+                            <button class="btn btn-sm btn-primary" onclick="loadAnalyticsDaily()">Refresh</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="generateAnalyticsReport('html')">Generate HTML Report</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="generateAnalyticsReport('pdf')">Generate PDF</button>
+                        </div>
+                    </div>
+
+                    <div id="analyticsTableWrapper" class="table-responsive">
+                        <table class="table table-sm table-striped analytics-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Start</th>
+                                    <th>End</th>
+                                    <th>Image</th>
+                                    <th>Device</th>
+                                    <th class="text-end">Plays</th>
+                                    <th class="text-end">Total Sec</th>
+                                    <th class="text-end">Avg Sec</th>
+                                    <th class="text-end">Completed</th>
+                                    <th class="text-end">Incomplete</th>
+                                </tr>
+                            </thead>
+                            <tbody id="analyticsTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div id="analyticsEmpty" class="analytics-empty" style="display: none;">No analytics data found for this range.</div>
+                </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
@@ -1074,6 +1380,7 @@
         let deviceContentByDevice = {};
         let libraryDraggedElement = null;
         let deviceDraggedElement = null;
+        let showBlockedDevices = false;
         let currentVideoElement = null;
 
         function showToast(message, variant = 'info') {
@@ -1198,6 +1505,10 @@
             });
         }
 
+        function confirmDialog(message) {
+            return confirmAction(message);
+        }
+
         let pageInitialized = false;
 
         function initPage() {
@@ -1212,10 +1523,19 @@
         function showAuthOverlay(message) {
             const overlay = document.getElementById('adminAuthOverlay');
             const error = document.getElementById('adminAuthError');
+            const info = document.getElementById('adminAuthInfo');
             if (message) {
-                error.textContent = message;
-                error.style.display = 'block';
+                if (info) {
+                    info.textContent = message;
+                    info.style.display = 'block';
+                } else {
+                    error.textContent = message;
+                    error.style.display = 'block';
+                }
             } else {
+                if (info) {
+                    info.style.display = 'none';
+                }
                 error.style.display = 'none';
             }
             overlay.classList.remove('hidden');
@@ -1227,7 +1547,27 @@
 
         function hideAuthOverlay() {
             const overlay = document.getElementById('adminAuthOverlay');
+            const error = document.getElementById('adminAuthError');
+            const info = document.getElementById('adminAuthInfo');
             overlay.classList.add('hidden');
+            if (error) {
+                error.textContent = '';
+                error.style.display = 'none';
+            }
+            if (info) {
+                info.textContent = '';
+                info.style.display = 'none';
+            }
+        }
+
+        function showLoggedOutScreen() {
+            const screen = document.getElementById('loggedOutScreen');
+            if (screen) screen.classList.remove('hidden');
+        }
+
+        function hideLoggedOutScreen() {
+            const screen = document.getElementById('loggedOutScreen');
+            if (screen) screen.classList.add('hidden');
         }
 
         function setLogoutVisible(isVisible) {
@@ -1242,6 +1582,7 @@
                 if (resp.ok) {
                     const result = await resp.json();
                     if (result.authed) {
+                        hideLoggedOutScreen();
                         hideAuthOverlay();
                         setLogoutVisible(true);
                         initPage();
@@ -1252,14 +1593,25 @@
                 console.error('Auth status error:', e);
             }
             setLogoutVisible(false);
-            showAuthOverlay();
+            showLoggedOutScreen();
         }
 
         async function submitAdminPin() {
             const pinInput = document.getElementById('adminAuthPin');
             const pin = (pinInput.value || '').trim();
             if (!pin) {
-                showAuthOverlay('PIN required');
+                const error = document.getElementById('adminAuthError');
+                const info = document.getElementById('adminAuthInfo');
+                if (info) {
+                    info.textContent = '';
+                    info.style.display = 'none';
+                }
+                if (error) {
+                    error.textContent = 'PIN required';
+                    error.style.display = 'block';
+                } else {
+                    showAuthOverlay('PIN required');
+                }
                 return;
             }
 
@@ -1277,9 +1629,31 @@
                     return;
                 }
                 const result = await resp.json().catch(() => ({}));
-                showAuthOverlay(result.error || 'Invalid PIN');
+                const error = document.getElementById('adminAuthError');
+                const info = document.getElementById('adminAuthInfo');
+                if (info) {
+                    info.textContent = '';
+                    info.style.display = 'none';
+                }
+                if (error) {
+                    error.textContent = result.error || 'Invalid PIN';
+                    error.style.display = 'block';
+                } else {
+                    showAuthOverlay(result.error || 'Invalid PIN');
+                }
             } catch (e) {
-                showAuthOverlay('Verification failed');
+                const error = document.getElementById('adminAuthError');
+                const info = document.getElementById('adminAuthInfo');
+                if (info) {
+                    info.textContent = '';
+                    info.style.display = 'none';
+                }
+                if (error) {
+                    error.textContent = 'Verification failed';
+                    error.style.display = 'block';
+                } else {
+                    showAuthOverlay('Verification failed');
+                }
             }
         }
 
@@ -1304,7 +1678,15 @@
                         console.error('Logout error:', e);
                     }
                     setLogoutVisible(false);
-                    showAuthOverlay();
+                    hideAuthOverlay();
+                    showLoggedOutScreen();
+                });
+            }
+            const loggedOutBtn = document.getElementById('loggedOutLoginBtn');
+            if (loggedOutBtn) {
+                loggedOutBtn.addEventListener('click', () => {
+                    hideLoggedOutScreen();
+                    showAuthOverlay('Enter PIN to continue.');
                 });
             }
             ensureAdminAuth();
@@ -1325,10 +1707,19 @@
         }
 
         // Render device checkboxes
+        function getVisibleDevices() {
+            return currentDevices.filter(device => showBlockedDevices || !device.is_blocked);
+        }
+
+        function getSelectableDevices() {
+            return currentDevices.filter(device => !device.is_blocked);
+        }
+
         function renderDeviceCheckboxes() {
             const container = document.getElementById('deviceCheckboxes');
+            const visibleDevices = getVisibleDevices();
             
-            if (currentDevices.length === 0) {
+            if (visibleDevices.length === 0) {
                 container.innerHTML = '<div class="text-muted">No devices found</div>';
                 return;
             }
@@ -1347,20 +1738,28 @@
             
             // Add individual device checkboxes
 			currentDevices.forEach(device => {
+				if (!showBlockedDevices && device.is_blocked) {
+					return;
+				}
 				const displayName = device.display_name || device.device_name;
-				const pending = !device.is_active;
+				const pending = !device.is_active && !device.is_blocked;
+				const blocked = !!device.is_blocked;
 				const orientation = (device.display_orientation || 'landscape').toLowerCase();
-				const tooltip = pending ? 'New device. Click the cog to activate and set details.' : '';
+				const tooltip = blocked
+					? 'Blocked device. Unblock to allow registration.'
+					: (pending ? 'New device. Click the cog to activate and set details.' : '');
 				html += `
-					<div>
-						<div class="device-checkbox-item ${pending ? 'pending-device' : ''}" onclick="toggleDevice('${device.device_id}')" title="${tooltip}">
+					<div class="device-inline-wrapper">
+						<div class="device-checkbox-item ${pending ? 'pending-device' : ''} ${blocked ? 'blocked-device' : ''}" ${blocked ? '' : `onclick="toggleDevice('${device.device_id}')"`} title="${tooltip}">
 							<input type="checkbox" id="device_${device.device_id}" 
+								   ${blocked ? 'disabled' : ''}
 								   onchange="handleDeviceChange(event, '${device.device_id}')"
 								   onclick="event.stopPropagation()">
 							<span class="device-name">${displayName}</span>
 							<span class="device-orientation ${orientation === 'portrait' ? 'portrait' : ''}" title="Orientation: ${orientation}"></span>
 							<span class="content-count">${device.content_count}</span>
 							${pending ? '<span class="badge bg-danger">New</span>' : ''}
+							${blocked ? '<span class="badge bg-secondary">Blocked</span>' : ''}
 							<button class="btn btn-sm btn-outline-secondary device-cog" onclick="toggleDeviceInlinePanel(event, '${device.device_id}')" title="Device settings">
 								<i class="fas fa-cog"></i>
 							</button>
@@ -1382,7 +1781,7 @@
 			const overlayEnabled = (device.overlay_enabled ?? true);
 			const overlayHideOnVideo = (device.overlay_hide_on_video ?? true);
 			const orientation = (device.display_orientation || 'landscape');
-			const pending = !device.is_active;
+			const pending = !device.is_active && !device.is_blocked;
 			return `
 				<div class="row g-2">
 					<div class="col-12">
@@ -1400,12 +1799,24 @@
 							<option value="portrait" ${orientation === 'portrait' ? 'selected' : ''}>Portrait</option>
 						</select>
 					</div>
-					<div class="col-12 d-flex gap-2">
+					<div class="col-12 d-flex gap-2 flex-wrap">
 						${pending ? `
 							<button class="btn btn-sm btn-success" onclick="approveDevice('${device.device_id}')">
 								<i class="fas fa-check"></i> Activate
 							</button>
 						` : ''}
+						${device.is_blocked ? `
+							<button class="btn btn-sm btn-outline-success" onclick="unblockDevice('${device.device_id}', '${device.display_name || device.device_name}')">
+								<i class="fas fa-unlock"></i> Unblock
+							</button>
+							<button class="btn btn-sm btn-outline-danger" onclick="deleteDevice('${device.device_id}', '${device.display_name || device.device_name}')">
+								<i class="fas fa-trash"></i> Delete permanently
+							</button>
+						` : `
+							<button class="btn btn-sm btn-outline-danger" onclick="blockDevice('${device.device_id}', '${device.display_name || device.device_name}')">
+								<i class="fas fa-ban"></i> Block device
+							</button>
+						`}
 					</div>
 				</div>
 				<hr class="my-2">
@@ -1452,8 +1863,19 @@
 			event.stopPropagation();
 			const panel = document.getElementById(`deviceInline_${deviceId}`);
 			if (!panel) return;
-			panel.classList.toggle('active');
+			const isActive = panel.classList.contains('active');
+			document.querySelectorAll('.device-inline-panel.active').forEach(p => p.classList.remove('active'));
+			if (!isActive) {
+				panel.classList.add('active');
+			}
 		}
+
+		document.addEventListener('click', (event) => {
+			if (event.target.closest('.device-inline-panel') || event.target.closest('.device-cog')) {
+				return;
+			}
+			document.querySelectorAll('.device-inline-panel.active').forEach(p => p.classList.remove('active'));
+		});
 
         // Handle "ALL" checkbox toggle
         function toggleAllDevices() {
@@ -1462,13 +1884,24 @@
             handleAllDevicesChange({ stopPropagation: () => {} });
         }
 
+        function toggleShowBlocked() {
+            const toggle = document.getElementById('showBlockedToggle');
+            showBlockedDevices = !!(toggle && toggle.checked);
+            selectedDeviceIds = selectedDeviceIds.filter(id => {
+                const device = currentDevices.find(d => d.device_id === id);
+                return device && (showBlockedDevices || !device.is_blocked);
+            });
+            renderDeviceCheckboxes();
+            updateSelectedDevicesInfo();
+        }
+
         function handleAllDevicesChange(event) {
             event.stopPropagation();
             const allCheckbox = document.getElementById('device_all');
             const isChecked = allCheckbox.checked;
             
             // Update all individual device checkboxes
-            currentDevices.forEach(device => {
+            getVisibleDevices().forEach(device => {
                 const deviceCheckbox = document.getElementById(`device_${device.device_id}`);
                 if (deviceCheckbox) {
                     deviceCheckbox.checked = isChecked;
@@ -1483,7 +1916,7 @@
             
             // Update selected devices array
             if (isChecked) {
-                selectedDeviceIds = currentDevices.map(d => d.device_id);
+                selectedDeviceIds = getSelectableDevices().map(d => d.device_id);
             } else {
                 selectedDeviceIds = [];
             }
@@ -1895,7 +2328,8 @@
                         start_date: today,
                         end_date: null,
                         start_time: null,
-                        end_time: null
+                        end_time: null,
+                        rotation_degrees: 0
                     };
                     
                     const response = await fetch('/api/assign-content-with-schedule', {
@@ -1990,12 +2424,14 @@
                             <div class="device-content-title">${content.original_name}</div>
                             
                             <!-- Display Mode Details - REORDERED: file-type, duration, days, times, dates -->
-                            <div class="content-details-display" id="details_${content.assignment_id}">
+							<div class="content-details-display" id="details_${content.assignment_id}">
                                 <div class="content-details-row">
 									<div class="detail-display file-type">
 										<i class="fas fa-file"></i>
 										<span>${content.file_type}</span>
 									</div>
+									${renderOverlayBadge(content.overlay_position)}
+									${renderRotationBadge(content.rotation_degrees)}
 									<div class="detail-display duration">
 										<i class="fas fa-clock"></i>
 										<span>${content.display_duration + 's'}</span>
@@ -2074,6 +2510,18 @@
 								</div>
                                 <div class="form-row">
                                     <div class="form-col">
+                                        <label class="form-label small">Rotation:</label>
+                                        <select class="form-select form-select-sm" id="rotation_${content.assignment_id}">
+                                            <option value="0">0° (Normal)</option>
+                                            <option value="90">90° CW</option>
+                                            <option value="180">180°</option>
+                                            <option value="270">270° CCW</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-col"></div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-col">
                                         <label class="form-label small">Overlay Position:</label>
                                         <select class="form-select form-select-sm" id="overlayPosition_${content.assignment_id}">
                                             <option value="top-left">Top Left</option>
@@ -2132,6 +2580,9 @@
                                                 <div class="form-check form-check-sm d-inline-flex align-items-center m-0">
                                                     <input class="form-check-input" type="checkbox" id="analyticsEnabled_${content.assignment_id}">
                                                     <label class="form-check-label small ms-1" for="analyticsEnabled_${content.assignment_id}">Enabled</label>
+                                                </div>
+                                                <div class="small text-muted" style="margin-left: 0.25rem;">
+                                                    Applies to all assignments with this filename.
                                                 </div>
                                             </div>
                                         </div>
@@ -2210,6 +2661,43 @@
 		function formatTransitionDisplay(transitionType, transitionDuration) {
 			if (!transitionType || transitionType === 'none') return 'No transition';
 			return `${transitionType} (${transitionDuration}s)`;
+		}
+
+		function renderOverlayBadge(position) {
+			const pos = (position || 'top-right').toLowerCase();
+			const activeClass = (target) => (pos === target ? 'active' : '');
+			const label = pos.replace('-', ' ');
+			return `
+				<div class="detail-display overlay-badge" title="Overlay ${label}">
+					<div class="overlay-grid">
+						<div class="cell ${activeClass('top-left')}"></div>
+						<div class="cell ${activeClass('top-right')}"></div>
+						<div class="cell ${activeClass('bottom-left')}"></div>
+						<div class="cell ${activeClass('bottom-right')}"></div>
+					</div>
+				</div>
+			`;
+		}
+
+		function renderRotationBadge(rotationDegrees) {
+			const degrees = parseInt(rotationDegrees || 0, 10);
+			let icon = 'fa-minus';
+			let label = 'No rotation';
+			if (degrees === 90) {
+				icon = 'fa-redo';
+				label = 'Rotate 90 CW';
+			} else if (degrees === 180) {
+				icon = 'fa-redo';
+				label = 'Rotate 180';
+			} else if (degrees === 270) {
+				icon = 'fa-undo';
+				label = 'Rotate 90 CCW';
+			}
+			return `
+				<div class="detail-display rotation-badge" title="${label}">
+					<i class="fas ${icon}"></i>
+				</div>
+			`;
 		}
 
         // Setup device content reordering - ONLY FOR SINGLE DEVICE
@@ -2367,7 +2855,8 @@
 				// Update ALL checkbox state
 				const allCheckbox = document.getElementById('device_all');
 				if (allCheckbox) {
-					const shouldBeChecked = selectedDeviceIds.length === currentDevices.length && currentDevices.length > 0;
+					const selectableCount = getSelectableDevices().length;
+					const shouldBeChecked = selectedDeviceIds.length === selectableCount && selectableCount > 0;
 					allCheckbox.checked = shouldBeChecked;
 					const allContainer = allCheckbox.closest('.device-checkbox-item');
 					if (shouldBeChecked) {
@@ -2824,8 +3313,49 @@
         }
 
 
+        async function blockDevice(deviceId, deviceName) {
+            const confirmMessage = `Block device "${deviceName}" (${deviceId})?\n\nBlocked devices cannot register and will be hidden by default.`;
+            const ok = await confirmAction(confirmMessage, 'Block device');
+            if (!ok) return;
+            try {
+                const resp = await fetch(`/api/device/${deviceId}/block`, { method: 'PUT' });
+                if (resp.ok) {
+                    await loadDevices();
+                    notify(`Device blocked: ${deviceName}`);
+                } else {
+                    const result = await resp.json().catch(() => ({}));
+                    notify(result.error || 'Failed to block device');
+                }
+            } catch (e) {
+                notify('Block error: ' + e.message);
+            }
+        }
+
+        async function unblockDevice(deviceId, deviceName) {
+            const confirmMessage = `Unblock device "${deviceName}" (${deviceId})?\n\nIt will return to pending approval.`;
+            const ok = await confirmAction(confirmMessage, 'Unblock');
+            if (!ok) return;
+            try {
+                const resp = await fetch(`/api/device/${deviceId}/unblock`, { method: 'PUT' });
+                if (resp.ok) {
+                    await loadDevices();
+                    notify(`Device unblocked: ${deviceName}`);
+                } else {
+                    const result = await resp.json().catch(() => ({}));
+                    notify(result.error || 'Failed to unblock device');
+                }
+            } catch (e) {
+                notify('Unblock error: ' + e.message);
+            }
+        }
+
         async function deleteDevice(deviceId, deviceName) {
             try {
+                const device = currentDevices.find(d => d.device_id === deviceId);
+                if (!device || !device.is_blocked) {
+                    notify('Block the device first to delete permanently.');
+                    return;
+                }
                 const response = await fetch(`/api/device/${deviceId}/content`);
                 const deviceContent = await response.json();
                 
@@ -2837,9 +3367,8 @@
                 
                 confirmMessage += '\n\nThis action cannot be undone.';
                 
-                if (!confirm(confirmMessage)) {
-                    return;
-                }
+                const ok = await confirmAction(confirmMessage, 'Delete permanently');
+                if (!ok) return;
                 
                 const deleteResponse = await fetch(`/api/device/${deviceId}`, {
                     method: 'DELETE'
@@ -2876,6 +3405,13 @@
 
         document.getElementById('systemSettingsModal').addEventListener('shown.bs.modal', function() {
             loadOverlaySettings();
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('#systemSettingsModal [data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+        });
+
+        document.getElementById('analyticsModal').addEventListener('shown.bs.modal', function() {
+            initializeAnalyticsDates();
+            loadAnalyticsDaily();
         });
 
         async function loadOverlaySettings() {
@@ -2884,16 +3420,292 @@
                 const settings = await settingsResp.json();
 
                 const preview = document.getElementById('overlayLogoPreview');
+                const emptyState = document.querySelector('.overlay-preview-empty');
                 if (settings.overlay_logo_url) {
                     preview.src = settings.overlay_logo_url;
                     preview.style.display = 'inline-block';
+                    if (emptyState) emptyState.style.display = 'none';
                 } else {
                     preview.style.display = 'none';
+                    if (emptyState) emptyState.style.display = 'block';
                 }
+
+                const rollupEnabled = document.getElementById('analyticsRollupEnabled');
+                const rollupTime = document.getElementById('analyticsRollupTime');
+                const rollupLookback = document.getElementById('analyticsRollupLookback');
+                const retentionDays = document.getElementById('analyticsRetentionDays');
+
+                if (rollupEnabled) rollupEnabled.checked = !!settings.analytics_rollup_enabled;
+                if (rollupTime) rollupTime.value = settings.analytics_rollup_time || '03:15';
+                if (rollupLookback) rollupLookback.value = settings.analytics_rollup_lookback_days || 2;
+                if (retentionDays) retentionDays.value = settings.analytics_retention_days || 30;
 
                 
             } catch (e) {
                 console.error('Overlay settings load error:', e);
+            }
+        }
+
+        async function saveAnalyticsRollupSettings() {
+            const rollupEnabled = document.getElementById('analyticsRollupEnabled');
+            const rollupTime = document.getElementById('analyticsRollupTime');
+            const rollupLookback = document.getElementById('analyticsRollupLookback');
+            const retentionDays = document.getElementById('analyticsRetentionDays');
+
+            const payload = {
+                analytics_rollup_enabled: !!(rollupEnabled && rollupEnabled.checked),
+                analytics_rollup_time: rollupTime ? rollupTime.value : '03:15',
+                analytics_rollup_lookback_days: rollupLookback ? parseInt(rollupLookback.value || '2', 10) : 2,
+                analytics_retention_days: retentionDays ? parseInt(retentionDays.value || '30', 10) : 30
+            };
+
+            try {
+                const resp = await fetch('/api/system/settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (resp.ok) {
+                    notify('Analytics settings saved');
+                } else {
+                    const result = await resp.json().catch(() => ({}));
+                    notify(result.error || 'Failed to save analytics settings');
+                }
+            } catch (e) {
+                notify('Analytics settings error: ' + e.message);
+            }
+        }
+
+        async function runAnalyticsRollupNow() {
+            const rollupLookback = document.getElementById('analyticsRollupLookback');
+            const lookback = Math.max(1, parseInt((rollupLookback && rollupLookback.value) || '2', 10));
+            const end = new Date();
+            end.setDate(end.getDate() - 1);
+            const start = new Date();
+            start.setDate(start.getDate() - lookback);
+
+            const startDate = start.toISOString().slice(0, 10);
+            const endDate = end.toISOString().slice(0, 10);
+
+            try {
+                const resp = await fetch('/api/analytics/rollup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ start_date: startDate, end_date: endDate })
+                });
+                if (resp.ok) {
+                    const result = await resp.json().catch(() => ({}));
+                    notify(`Rollup complete (${result.rolled_up || 0} rows)`);
+                } else {
+                    const result = await resp.json().catch(() => ({}));
+                    notify(result.error || 'Rollup failed');
+                }
+            } catch (e) {
+                notify('Rollup error: ' + e.message);
+            }
+        }
+
+        async function runAnalyticsCleanupNow() {
+            const ok = await confirmDialog('This will permanently delete raw analytics older than the retention window. Continue?');
+            if (!ok) return;
+            try {
+                const resp = await fetch('/api/analytics/cleanup', { method: 'POST' });
+                if (resp.ok) {
+                    const result = await resp.json().catch(() => ({}));
+                    notify(`Cleanup deleted ${result.deleted || 0} rows`);
+                } else {
+                    const result = await resp.json().catch(() => ({}));
+                    notify(result.error || 'Cleanup failed');
+                }
+            } catch (e) {
+                notify('Cleanup error: ' + e.message);
+            }
+        }
+
+        function initializeAnalyticsDates() {
+            const fromInput = document.getElementById('analyticsFromDate');
+            const toInput = document.getElementById('analyticsToDate');
+            if (!fromInput || !toInput) return;
+            if (fromInput.value && toInput.value) return;
+            const today = new Date();
+            const to = new Date(today);
+            const from = new Date(today);
+            from.setDate(from.getDate() - 30);
+            to.setDate(to.getDate() - 1);
+            fromInput.value = from.toISOString().slice(0, 10);
+            toInput.value = to.toISOString().slice(0, 10);
+        }
+
+        async function loadAnalyticsDaily() {
+            const fromInput = document.getElementById('analyticsFromDate');
+            const toInput = document.getElementById('analyticsToDate');
+            const fromDate = fromInput ? fromInput.value : '';
+            const toDate = toInput ? toInput.value : '';
+            const body = document.getElementById('analyticsTableBody');
+            const empty = document.getElementById('analyticsEmpty');
+            const wrapper = document.getElementById('analyticsTableWrapper');
+
+            if (!body || !empty || !wrapper) return;
+            body.innerHTML = '';
+            empty.style.display = 'none';
+            wrapper.style.display = 'block';
+
+            try {
+                const params = new URLSearchParams();
+                if (fromDate) params.append('from', fromDate);
+                if (toDate) params.append('to', toDate);
+                params.append('file_type', 'image');
+                const resp = await fetch(`/api/analytics/daily?${params.toString()}`);
+                if (!resp.ok) {
+                    const result = await resp.json().catch(() => ({}));
+                    notify(result.error || 'Failed to load analytics');
+                    return;
+                }
+                const data = await resp.json();
+                const rows = data.rows || [];
+                if (!rows.length) {
+                    wrapper.style.display = 'none';
+                    empty.style.display = 'block';
+                    return;
+                }
+
+                rows.forEach(row => {
+                    const day = row.day || '';
+                    const start = `${day} 00:00`;
+                    const end = `${day} 23:59`;
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${day}</td>
+                        <td>${start}</td>
+                        <td>${end}</td>
+                        <td>${row.filename || ''}</td>
+                        <td>${row.device_id || ''}</td>
+                        <td class="text-end">${row.plays ?? 0}</td>
+                        <td class="text-end">${row.total_seconds ?? 0}</td>
+                        <td class="text-end">${Math.round((row.avg_seconds ?? 0) * 10) / 10}</td>
+                        <td class="text-end">${row.completed_count ?? 0}</td>
+                        <td class="text-end">${row.incomplete_count ?? 0}</td>
+                    `;
+                    body.appendChild(tr);
+                });
+            } catch (e) {
+                notify('Analytics load error: ' + e.message);
+            }
+        }
+
+        async function generateAnalyticsReport(format) {
+            const fromInput = document.getElementById('analyticsFromDate');
+            const toInput = document.getElementById('analyticsToDate');
+            const fromDate = fromInput ? fromInput.value : '';
+            const toDate = toInput ? toInput.value : '';
+
+            try {
+                const params = new URLSearchParams();
+                if (fromDate) params.append('from', fromDate);
+                if (toDate) params.append('to', toDate);
+                params.append('file_type', 'image');
+                const resp = await fetch(`/api/analytics/daily?${params.toString()}`);
+                if (!resp.ok) {
+                    const result = await resp.json().catch(() => ({}));
+                    notify(result.error || 'Failed to load analytics');
+                    return;
+                }
+                const data = await resp.json();
+                const rows = data.rows || [];
+                if (!rows.length) {
+                    notify('No analytics data for report');
+                    return;
+                }
+
+                const reportWindow = window.open('', '_blank');
+                if (!reportWindow) {
+                    notify('Pop-up blocked. Please allow pop-ups for reports.');
+                    return;
+                }
+
+                const escapedRows = rows.map(r => ({
+                    day: r.day || '',
+                    filename: (r.filename || '').replace(/</g, '&lt;'),
+                    device_id: (r.device_id || '').replace(/</g, '&lt;'),
+                    plays: r.plays ?? 0,
+                    total_seconds: r.total_seconds ?? 0
+                }));
+
+                const chartRows = escapedRows.map(r => `['${r.day}', ${r.total_seconds}, ${r.plays}]`).join(',');
+                const tableRows = rows.map(r => `
+                    <tr>
+                        <td>${r.day || ''}</td>
+                        <td>${r.filename || ''}</td>
+                        <td>${r.device_id || ''}</td>
+                        <td class="num">${r.plays ?? 0}</td>
+                        <td class="num">${r.total_seconds ?? 0}</td>
+                        <td class="num">${Math.round((r.avg_seconds ?? 0) * 10) / 10}</td>
+                        <td class="num">${r.completed_count ?? 0}</td>
+                        <td class="num">${r.incomplete_count ?? 0}</td>
+                    </tr>`).join('');
+
+                reportWindow.document.write(`
+                    <html>
+                    <head>
+                        <title>Analytics Report</title>
+                        <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"><\/script>
+                        <style>
+                            body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+                            h2 { margin: 0 0 6px; }
+                            .meta { color: #64748b; margin-bottom: 18px; }
+                            table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 12px; }
+                            th, td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; }
+                            th { background: #f1f5f9; }
+                            .num { text-align: right; }
+                            #chart { width: 100%; height: 280px; }
+                        </style>
+                    </head>
+                    <body>
+                        <h2>Daily Analytics Report</h2>
+                        <div class="meta">Range: ${fromDate || 'N/A'} to ${toDate || 'N/A'}</div>
+                        <div id="chart"></div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Image</th>
+                                    <th>Device</th>
+                                    <th class="num">Plays</th>
+                                    <th class="num">Total Sec</th>
+                                    <th class="num">Avg Sec</th>
+                                    <th class="num">Completed</th>
+                                    <th class="num">Incomplete</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows}
+                            </tbody>
+                        </table>
+                        <script>
+                            google.charts.load('current', { packages: ['corechart'] });
+                            google.charts.setOnLoadCallback(drawChart);
+                            function drawChart() {
+                                const data = google.visualization.arrayToDataTable([
+                                    ['Day', 'Total Seconds', 'Plays'],
+                                    ${chartRows}
+                                ]);
+                                const chart = new google.visualization.ColumnChart(document.getElementById('chart'));
+                                chart.draw(data, {
+                                    legend: { position: 'top' },
+                                    colors: ['#2563eb', '#10b981'],
+                                    height: 280
+                                });
+                                if ('${format}' === 'pdf') {
+                                    setTimeout(() => window.print(), 500);
+                                }
+                            }
+                        <\/script>
+                    </body>
+                    </html>
+                `);
+                reportWindow.document.close();
+            } catch (e) {
+                notify('Report error: ' + e.message);
             }
         }
 
@@ -2916,8 +3728,10 @@
                 const result = await resp.json();
                 if (resp.ok) {
                     const preview = document.getElementById('overlayLogoPreview');
+                    const emptyState = document.querySelector('.overlay-preview-empty');
                     preview.src = result.url;
                     preview.style.display = 'inline-block';
+                    if (emptyState) emptyState.style.display = 'none';
                     notify('Overlay logo uploaded');
                 } else {
                     notify(result.error || 'Upload failed');
@@ -3073,7 +3887,7 @@
             console.log('Transition duration from content:', content.transition_duration);
             
             const transitionSelect = document.getElementById(`transitionType_${assignmentId}`);
-            const durationSelect = document.getElementById(`transitionDuration_${assignmentId}`);
+                const durationSelect = document.getElementById(`transitionDuration_${assignmentId}`);
             
             console.log('Found transition select element:', transitionSelect);
             console.log('Found duration select element:', durationSelect);
@@ -3097,6 +3911,12 @@
 				durationSelect.value = durationValue;
 				console.log('Set transition duration to:', durationValue, 'Actual value now:', durationSelect.value);
 			}
+
+            const rotationSelect = document.getElementById(`rotation_${assignmentId}`);
+            if (rotationSelect) {
+                const rotationValue = content.rotation_degrees ?? 0;
+                rotationSelect.value = String(rotationValue);
+            }
 
             const deviceId = content.device_id || (selectedDeviceIds[0] || null);
             const device = deviceId ? currentDevices.find(d => d.device_id === deviceId) : null;
@@ -3161,7 +3981,10 @@
 				end_date: document.getElementById(`endDate_${assignmentId}`).value || null,
 				transition_type: document.getElementById(`transitionType_${assignmentId}`).value || 'fade',
 				transition_duration: parseFloat(document.getElementById(`transitionDuration_${assignmentId}`).value) || 1.0,
+                rotation_degrees: parseInt(document.getElementById(`rotation_${assignmentId}`).value || '0', 10),
                 analytics_enabled: document.getElementById(`analyticsEnabled_${assignmentId}`).checked,
+                analytics_apply_to_filename: true,
+                analytics_filename: (currentDeviceContent.find(c => c.assignment_id == assignmentId) || {}).filename || null,
                 analytics_sample_rate: 5,
                 overlay_enabled: document.getElementById(`overlayEnabled_${assignmentId}`).checked,
                 overlay_position: document.getElementById(`overlayPosition_${assignmentId}`).value
@@ -3272,7 +4095,8 @@
 				// Update ALL checkbox state
 				const allCheckbox = document.getElementById('device_all');
 				if (allCheckbox) {
-					const shouldBeChecked = selectedDeviceIds.length === currentDevices.length && currentDevices.length > 0;
+					const selectableCount = getSelectableDevices().length;
+					const shouldBeChecked = selectedDeviceIds.length === selectableCount && selectableCount > 0;
 					allCheckbox.checked = shouldBeChecked;
 					const allContainer = allCheckbox.closest('.device-checkbox-item');
 					if (shouldBeChecked) {

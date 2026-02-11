@@ -150,6 +150,9 @@ The Android app must be switched **before deploying to real hardware**.
   - `/api/playlist/<id>` now **always returns wrapper**
   - Token verification enforced
   - Playback analytics ingest + per-media summary
+  - Analytics daily rollup + retention scheduler
+  - Analytics daily endpoint: `GET /api/analytics/daily`
+  - Device block/unblock (anti-spoof): `PUT /api/device/<id>/block`, `PUT /api/device/<id>/unblock`
 
 ### Admin UI
 - `templates/index.html`
@@ -157,10 +160,14 @@ The Android app must be switched **before deploying to real hardware**.
   - Approve button wired to backend
   - Overlay & PIN settings modal (global)
   - Inline per-device settings via cog on device tiles (name/location/overlay)
+  - Device settings popover (no layout push)
+  - Show blocked devices toggle + blocked state badge
   - Drag-and-drop media upload zone (primary upload path)
   - Per-content analytics toggle (default every 5 plays)
   - Stats badge on assignments when analytics is enabled
   - Toast notifications for UI actions (top-center)
+  - Analytics modal (daily rollup view + HTML/PDF report launch)
+  - Logged-out screen with explicit login prompt
 
 ### Git
 - `.gitignore`
@@ -199,6 +206,23 @@ Everything has been validated on:
    - Offline cache fallback
    - DPAD navigation
 
+## Next Engineering Tasks (UI + Analytics)
+
+1. Spoof analytics data to validate rollups end-to-end.
+2. Prevent drag/drop in Media Library from duplicating when dropping onto the upload box.
+3. When assigning media, auto-enable analytics if that filename already has tracking enabled.
+4. UI tidy: normalize padding/whitespace across panels.
+5. Make overlay logo icon visually consistent with other device icons.
+6. Simplify/tidy the device edit popover (reduce clutter).
+7. Make both drag/drop boxes the same color so they read as the same action.
+8. Server-side PDF generator for analytics (instead of browser print).
+9. HTML report generator using Google Charts (polish output).
+10. Fix rotation icon size to match other icons.
+11. Stats badge: show graph icon + "stats" (remove "1/5").
+12. Move "Block device" button to bottom of device popover.
+13. Confirm admin PIN is only for admin UI (not reused for device access).
+14. Set page height slightly shorter than full viewport (avoid taskbar overlap).
+
 --- 
 
 ## Quick Install (Windows)
@@ -227,6 +251,10 @@ You can also run:
 - ❌ Content playback optimisation
 
 These belong to **Phase 4+** only.
+
+## Future Exploration (Not Yet Started)
+
+- Docker/hosted server option (requires stronger security/authentication before any public exposure).
 
 ---
 
@@ -272,13 +300,13 @@ These belong to **Phase 4+** only.
 
 - Analytics are recorded **per content assignment** only when **Record stats** is enabled.
 - Sample rate defaults to **every 5 plays** (reduces noise; can be adjusted later in code if needed).
+- Daily rollups are stored in `analytics_daily` and can be viewed in the Analytics modal.
 - **Reports are not auto-generated.** Recommended workflow:
   - Generate **monthly summaries** per media using `GET /api/analytics/media/<media_id>?from=YYYY-MM-DD&to=YYYY-MM-DD`.
-  - For operational use, run reports shortly after month end (e.g., first week of the following month).
-  - Export results into a PDF/CSV for sharing.
-- **Future idea:** roll up analytics into daily/weekly summary tables and purge raw events to control table growth.
+  - Use the Analytics modal to launch HTML/PDF reports (client-side rendering).
+- **Future idea:** server-side PDF generation (instead of browser print).
 - **Future idea:** add a backend “refresh app” command so devices can re-pull state when changes aren’t picked up (tie into offline/server unreachable handling).
 
 ---
 
-_Last updated: 2026-02-09_
+_Last updated: 2026-02-11_

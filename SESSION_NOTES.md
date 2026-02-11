@@ -1,51 +1,59 @@
-# SESSION NOTES (2026-02-09)
+# SESSION NOTES (2026-02-11)
 
 Quick handover summary for next session.
 
 ## Where We Left Off
 
-- Active branch: `NewDev` (pushed to `origin/NewDev`).
-- UI and backend are functional again after restoring missing endpoints.
-- Device settings are now inline via a cog on each device checkbox tile.
-- Toast notifications are implemented as pure JS inline toasts (no Bootstrap dependency).
-- Upload UX: drag/drop box is primary; blue Upload button removed.
+- Added analytics rollup + retention scheduler and settings UI.
+- Added Analytics modal (daily rollups + HTML/PDF report launch).
+- Added device block/unblock flow (anti-spoof) and hide/show blocked toggle.
+- Device settings now open as a popover (no layout push).
+- Logged-out screen added with explicit login prompt.
+- Devices now display up to 4 per row.
+- Custom confirm dialog used for block/unblock/delete (no browser “localhost says”).
 
 ## Key Files Touched
 
 - `templates/index.html`
-  - Inline per-device settings panel under each device tile (cog opens).
-  - New device tiles are highlighted red with tooltip.
-  - Toasts rendered via inline JS (top-center, 3.5s).
-  - Drag-and-drop upload zone is primary entry point.
-  - Selected devices helper bar now appears above drag area.
-  - Removed extra device cards; device settings modal kept as fallback.
+  - Analytics modal + report launch.
+  - Device block/unblock UI + show blocked toggle.
+  - Device settings popover (absolute positioned).
+  - Logged-out screen with login prompt.
+  - 4-per-row device grid.
 - `production_app.py`
-  - Restored endpoints: `/api/playlist`, `/api/device/<id>/content`, `/api/device-content/<id>/schedule`, `/api/device-content/<id>/pause`, `/api/device/reorder-content`, `/api/remove-content/<id>`, `/api/device/<id>/overlay`, `/api/register`, `/api/device/<id>/activate`, `/api/media/<id>` (GET + DELETE), `/api/system/settings`, `/api/system/overlay-logo`, `/api/system/pin`, `/uploads/<filename>`.
-- `ClubSignage/app/src/main/java/com/yourcompany/signagefiretv/MainActivity.kt`
-  - Overlay anchored to screen (not image content).
+  - Analytics rollup scheduler + `/api/analytics/daily`.
+  - Device block/unblock endpoints + `is_blocked`.
 
 ## Documentation Updated
 
 - `README.md`
-  - Updated Admin UI notes
-  - Analytics sampling defaults and reporting guidance
+  - Added session features and next tasks
 - `PROJECT_HANDOVER.md`
-  - Updated Admin UI behavior
-  - Analytics reporting notes (manual monthly cadence)
-  - `playback_analytics` now described as populated
+  - Updated Admin UI, analytics rollups, and device block/unblock
 
 ## Known UX Requests Completed
 
-- Toasts working (top-center, 3.5s).
-- Custom confirm dialog replaces browser “server says”.
-- Drag/drop upload is primary; blue Upload button removed.
-- Device inline settings via cog; new devices highlighted red.
+- Analytics modal + reports (HTML/PDF launch).
+- Block/unblock devices with hidden-by-default toggle.
+- Device popover no longer pushes layout.
+- Logged-out screen with explicit login prompt.
 
 ## Next Session Suggested Focus
 
-1. Hardening + cleanup for installation and APK packaging.
-2. Verify UI polish on inline device settings (spacing, mobile).
-3. Audit unused files and unused endpoints.
+1. Spoof analytics data to validate rollups end-to-end.
+2. Prevent drag/drop in Media Library from duplicating when dropping onto the upload box.
+3. When assigning media, auto-enable analytics if that filename already has tracking enabled.
+4. UI tidy: normalize padding/whitespace across panels.
+5. Make overlay logo icon visually consistent with other device icons.
+6. Simplify/tidy the device edit popover (reduce clutter).
+7. Make both drag/drop boxes the same color so they read as the same action.
+8. Server-side PDF generator for analytics (instead of browser print).
+9. HTML report generator using Google Charts (polish output).
+10. Fix rotation icon size to match other icons.
+11. Stats badge: show graph icon + "stats" (remove "1/5").
+12. Move "Block device" button to bottom of device popover.
+13. Confirm admin PIN is only for admin UI (not reused for device access).
+14. Set page height slightly shorter than full viewport (avoid taskbar overlap).
 
 ## Recent Changes
 
