@@ -11,6 +11,7 @@ Quick handover summary for next session.
 - Logged-out screen added with explicit login prompt.
 - Devices now display up to 4 per row.
 - Custom confirm dialog used for block/unblock/delete (no browser “localhost says”).
+- **Rotation experiment saved separately:** `MainActivity_rotation_experiment.kt` contains the rotation/overlay logic for review next session. Active `MainActivity.kt` is intentionally left as-is for now.
 
 ## Key Files Touched
 
